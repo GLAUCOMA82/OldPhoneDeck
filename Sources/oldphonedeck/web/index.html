@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- OldPhoneDeck: a Stream Deck–style home for a phone in landscape.
+     Must run in iOS 8/9 Safari (iPhone 4S): ES5 syntax only, no fetch, no flex gap, no Intl.
+     Modern iPhones additionally get a Phone tab (camera + mic to the Mac) and voice input for Ask Claude. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OldPhoneDeck">
+<meta name="theme-color" content="#050507">
+<title>OldPhoneDeck</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; color: #f5f5f7;
+    background: radial-gradient(ellipse at 0% 0%, rgba(94,92,230,.20), rgba(0,0,0,0) 55%),
+                radial-gradient(ellipse at 100% 100%, rgba(217,119,87,.14), rgba(0,0,0,0) 55%), #050507;
+    font: 13px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased;
+    -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: rgba(0,0,0,0); }
+  /* Everything is laid out on a stage 320pt tall; its width follows the screen (480 on a 4S, wider on modern phones). */
+  #stage { position: absolute; left: 0; top: 0; width: 480px; height: 320px; overflow: hidden;
+    -webkit-transform-origin: 0 0; transform-origin: 0 0; }
+  /* Measures the notch / Dynamic Island / home-indicator insets (0 on old iOS, which ignores env()). */
+  #safe { position: fixed; left: 0; top: 0; visibility: hidden; pointer-events: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .view { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: none; }
+  .view.on { display: block; }
+
+  /* ---- status bar ---- */
+  #status { position: absolute; left: 0; right: 0; top: 0; height: 46px; z-index: 5; }
+  /* Lock-screen style: big rounded time, small caps date underneath. */
+  #clock { position: absolute; left: 16px; top: 5px; line-height: 1; }
+  #time { font: 700 24px "SF Pro Rounded", ui-rounded, -apple-system, "Helvetica Neue", sans-serif; letter-spacing: -.6px;
+    -webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum"; }
+  #ampm { font-size: 10px; font-weight: 700; color: #8e8e93; margin-left: 3px; letter-spacing: .3px; }
+  #date { display: block; margin-top: 3px; font-size: 9px; font-weight: 600; letter-spacing: .9px; text-transform: uppercase; color: #8e8e93; }
+  #seg { position: absolute; left: 50%; top: 11px; margin-left: -66px; width: 132px; height: 22px; display: none;
+    background: rgba(118,118,128,.24); border-radius: 8px; }
+  #seg div { float: left; width: 62px; height: 18px; margin: 2px; line-height: 18px; text-align: center;
+    font-size: 11px; font-weight: 600; color: #c7c7cc; border-radius: 6px; }
+  #seg div.on { background: #636366; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  #right { position: absolute; right: 16px; top: 14px; font-size: 11px; font-weight: 600; color: #c7c7cc; white-space: nowrap; }
+  #link { display: inline-block; width: 6px; height: 6px; border-radius: 3px; background: #ff453a; margin-right: 5px; vertical-align: 1px; }
+  #link.ok { background: #30d158; }
+  .batt { display: inline-block; width: 20px; height: 9px; border: 1px solid rgba(255,255,255,.5); border-radius: 3px;
+    position: relative; vertical-align: -1px; margin-left: 8px; }
+  .batt:after { content: ""; position: absolute; right: -3px; top: 2px; width: 1.5px; height: 5px; background: rgba(255,255,255,.5); border-radius: 0 1px 1px 0; }
+  .batt i { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1px; background: #fff; }
+
+  /* ---- keys ---- */
+  #keys { position: absolute; top: 76px; width: 316px; }
+  .key { position: relative; float: left; width: 70px; margin: 0 12px 14px 0; text-align: center; }
+  .key:nth-child(4n) { margin-right: 0; }
+  .cap { width: 70px; height: 70px; border-radius: 18px; position: relative;
+    background: linear-gradient(180deg, #303036 0%, #1b1b1f 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.11), inset 0 -1px 0 rgba(0,0,0,.6), 0 3px 0 #0a0a0c, 0 8px 16px rgba(0,0,0,.55);
+    -webkit-transition: -webkit-transform .08s, box-shadow .08s; transition: transform .08s, box-shadow .08s; }
+  .cap img { position: absolute; left: 10px; top: 10px; width: 50px; height: 50px; }
+  .key.down .cap { -webkit-transform: translateY(2px) scale(.97); transform: translateY(2px) scale(.97);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 0 #0a0a0c, 0 2px 6px rgba(0,0,0,.5); }
+  .key .label { margin-top: 7px; font-size: 10px; font-weight: 500; color: #aeaeb2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .key.empty .cap { background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+  .key.empty .cap:after { content: "+"; position: absolute; left: 0; right: 0; top: 16px; font-size: 30px; font-weight: 200; color: #636366; }
+  .key.claude .cap { background: linear-gradient(180deg, #e8946f 0%, #c55e39 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.30), inset 0 -1px 0 rgba(0,0,0,.25), 0 3px 0 #6b2d16, 0 8px 18px rgba(217,119,87,.35); }
+  .key.claude.down .cap { box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 1px 0 #6b2d16, 0 2px 8px rgba(217,119,87,.3); }
+  .key.claude svg { position: absolute; left: 17px; top: 17px; }
+  .key.claude .label { color: #f2b49c; }
+  #hint { position: absolute; top: 290px; font-size: 9.5px; color: #48484a; text-align: center; }
+
+  /* ---- widgets ---- */
+  .card { position: absolute; border-radius: 18px; box-sizing: border-box; padding: 11px 12px; overflow: hidden;
+    background: rgba(255,255,255,.065); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12); }
+  .card h3 { margin: 0 0 7px; font-size: 9.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: #8e8e93; }
+  .big { font-size: 24px; font-weight: 600; letter-spacing: -.8px; line-height: 26px; white-space: nowrap; }
+  .big small { font-size: 10px; font-weight: 600; color: #8e8e93; letter-spacing: 0; margin-left: 3px; }
+  .sub { font-size: 10.5px; color: #c7c7cc; margin-top: 3px; white-space: nowrap; }
+  .arrow { color: #64d2ff; font-weight: 700; }
+  .arrow.up { color: #30d158; }
+  #spark { display: block; margin-top: 6px; }
+  .foot { position: absolute; left: 12px; right: 12px; bottom: 9px; font-size: 9px; color: #636366; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Batteries: compact chips, icon + percentage */
+  .chip { float: left; width: 50%; height: 30px; position: relative; box-sizing: border-box; padding-right: 6px; }
+  .chip svg { position: absolute; left: 0; top: 8px; width: 13px; height: 13px; }
+  .chip b { position: absolute; left: 17px; top: 7px; font-size: 11.5px; font-weight: 600; color: #f5f5f7; letter-spacing: -.3px;
+    -webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum"; }
+  .chip:nth-child(2n) { padding-left: 6px; }
+  .chip:nth-child(2n) svg { left: 6px; }
+  .chip:nth-child(2n) b { left: 23px; }
+  .chip b.mid { color: #ffd60a; }
+  .chip b.low { color: #ff453a; }
+  .chip b.chg { color: #30d158; }
+  .empty-note { font-size: 10px; color: #636366; }
+  /* ---- now playing ---- */
+  #music { position: absolute; height: 52px; padding: 0; }
+  #mArt { position: absolute; left: 8px; top: 8px; width: 36px; height: 36px; border-radius: 8px;
+    background: linear-gradient(135deg, #3a3a3c, #232326); box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+  #mArt.none { visibility: hidden; }
+  #mNote { position: absolute; left: 8px; top: 8px; width: 36px; height: 36px; border-radius: 8px; text-align: center;
+    line-height: 36px; font-size: 18px; color: #636366; background: linear-gradient(135deg, #3a3a3c, #232326); }
+  #mInfo { position: absolute; left: 54px; right: 116px; top: 9px; }
+  #mTitle { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #mArtist { font-size: 10.5px; color: #8e8e93; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #mProg { position: absolute; left: 54px; right: 116px; bottom: 8px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #mProg i { display: block; height: 100%; width: 0; background: rgba(255,255,255,.75); border-radius: 2px; }
+  #mBtns { position: absolute; right: 8px; top: 9px; width: 104px; height: 34px; }
+  .mb { float: left; width: 34px; height: 34px; border-radius: 17px; position: relative; }
+  .mb svg { position: absolute; left: 9px; top: 9px; }
+  .mb.play { background: #f5f5f7; margin: 0 1px; }
+  .mb.down { -webkit-transform: scale(.9); transform: scale(.9); opacity: .7; }
+
+  /* ---- Phone tab (modern iPhones) ---- */
+  #pvBox { position: absolute; left: 16px; top: 42px; height: 264px; border-radius: 18px; overflow: hidden;
+    background: #111114; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12); }
+  #pv { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #pvOff { position: absolute; left: 0; right: 0; top: 122px; text-align: center; color: #636366; font-size: 12px; }
+  #pCtl { position: absolute; top: 42px; }
+  .pbtn { height: 52px; border-radius: 15px; margin-bottom: 9px; padding: 9px 13px; box-sizing: border-box;
+    background: linear-gradient(180deg, #303036 0%, #1b1b1f 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 3px 0 #0a0a0c, 0 6px 12px rgba(0,0,0,.5); }
+  .pbtn b { display: block; font-size: 12px; font-weight: 600; }
+  .pbtn span { display: block; font-size: 10px; color: #8e8e93; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pbtn.small { height: 36px; padding-top: 11px; }
+  .pbtn.on { background: linear-gradient(180deg, #34c759 0%, #248a3d 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 3px 0 #0f3d1b, 0 6px 14px rgba(52,199,89,.3); }
+  .pbtn.on span { color: #d8f5df; }
+  .pbtn.down { -webkit-transform: translateY(2px); transform: translateY(2px); }
+  #pNote { font-size: 9.5px; color: #8e8e93; line-height: 13px; margin-top: 4px; word-break: break-all; }
+  #pSetup { position: absolute; left: 16px; right: 16px; top: 42px; border-radius: 18px; padding: 14px; background: #1c1c1e;
+    box-shadow: inset 0 0 0 .5px rgba(255,255,255,.1); display: none; }
+  #pSetup h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  #pSetup p { margin: 0 0 8px; font-size: 11.5px; line-height: 16px; color: #d1d1d6; }
+  #pSetup a { color: #64d2ff; }
+
+  /* ---- sheets ---- */
+  .scrim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 10; display: none; }
+  .scrim.on { display: block; }
+  .sheet { position: absolute; top: 8px; left: 50%; width: 360px; margin-left: -180px; border-radius: 20px; padding: 13px; box-sizing: border-box;
+    background: #1c1c1e; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.1), 0 20px 40px rgba(0,0,0,.6); }
+  .sheet h2 { margin: 0 0 9px; font-size: 13px; font-weight: 600; }
+  .sheet h2 small { font-size: 10.5px; font-weight: 500; color: #8e8e93; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: #d97757; margin-right: 6px; }
+  #askText { width: 100%; height: 56px; box-sizing: border-box; border: 0; border-radius: 11px; padding: 8px 10px; resize: none;
+    background: #2c2c2e; color: #fff; font: 14px -apple-system, "Helvetica Neue", sans-serif; -webkit-user-select: text; outline: none; }
+  .btns { margin-top: 9px; overflow: hidden; }
+  .btn { float: right; margin-left: 8px; padding: 0 15px; height: 28px; line-height: 28px; border-radius: 14px; font-size: 12px; font-weight: 600;
+    background: #3a3a3c; color: #fff; }
+  .btn.primary { background: #d97757; }
+  .opt { float: left; font-size: 10.5px; color: #8e8e93; line-height: 28px; }
+  .opt input { vertical-align: -2px; }
+  #askMic { float: left; width: 28px; height: 28px; border-radius: 14px; background: #3a3a3c; margin-right: 8px; position: relative; display: none; }
+  #askMic.live { background: #ff453a; }
+  #askMic svg { position: absolute; left: 7px; top: 5px; }
+  #edit .sheet { left: 8px; right: 8px; width: auto; margin-left: 0; top: 8px; bottom: 8px; padding: 10px 10px 0; }
+  #filter { position: absolute; left: 10px; right: 150px; top: 10px; height: 28px; box-sizing: border-box; border: 0; border-radius: 9px;
+    background: #2c2c2e; color: #fff; padding: 0 10px; font-size: 13px; outline: none; -webkit-user-select: text; }
+  #edit .btns { position: absolute; right: 10px; top: 10px; margin: 0; }
+  #editCount { position: absolute; left: 12px; top: 44px; font-size: 10px; color: #8e8e93; }
+  #editList { position: absolute; left: 6px; right: 6px; top: 60px; bottom: 0; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
+  .erow { height: 34px; position: relative; border-bottom: .5px solid rgba(255,255,255,.08); }
+  .erow img { position: absolute; left: 30px; top: 4px; width: 26px; height: 26px; }
+  .erow .nm { position: absolute; left: 64px; right: 40px; top: 9px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .erow .ck { position: absolute; left: 4px; top: 8px; width: 18px; height: 18px; border-radius: 9px; box-shadow: inset 0 0 0 1.5px #48484a;
+    text-align: center; line-height: 18px; font-size: 11px; font-weight: 700; color: #fff; }
+  .erow.on .ck { background: #0a84ff; box-shadow: none; }
+  .erow .up { position: absolute; right: 4px; top: 4px; width: 30px; height: 26px; line-height: 26px; text-align: center; color: #8e8e93; }
+  .erow.full { opacity: .35; }
+
+  #toast { position: absolute; left: 50%; top: 38px; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 20;
+    background: rgba(44,44,46,.95); padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 500; white-space: nowrap; display: none; }
+  #login .sheet { top: 40px; text-align: center; }
+  #code { width: 70%; height: 32px; border: 0; border-radius: 9px; background: #2c2c2e; color: #fff; text-align: center; font-size: 16px; }
+</style>
+</head>
+<body>
+<div id="safe"></div>
+<div id="stage">
+  <div id="toast"></div>
+
+  <!-- The deck: 8 keys + widgets -->
+  <div id="deck" class="view on">
+    <div id="keys"></div>
+    <div id="hint">Hold any key to choose apps</div>
+    <div id="music" class="card">
+      <div id="mNote">♪</div><img id="mArt" class="none" alt="">
+      <div id="mInfo"><div id="mTitle">Nothing playing</div><div id="mArtist">Spotify or Apple Music</div></div>
+      <div id="mProg"><i id="mProgFill"></i></div>
+      <div id="mBtns">
+        <div class="mb" id="mPrev"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3.5 3v10M12.5 3.6v8.8L5.8 8z" fill="#f5f5f7" stroke="#f5f5f7" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+        <div class="mb play" id="mPlay"></div>
+        <div class="mb" id="mNext"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.5 3v10M3.5 3.6v8.8L10.2 8z" fill="#f5f5f7" stroke="#f5f5f7" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+      </div>
+    </div>
+    <div id="net" class="card">
+      <h3 id="netTitle">Internet</h3>
+      <div class="big"><span class="arrow">↓</span> <span id="down">–</span><small>Mbps</small></div>
+      <div class="sub"><span class="arrow up">↑</span> <span id="up">–</span> Mbps · <span id="ping">–</span> ms</div>
+      <canvas id="spark" width="208" height="36"></canvas>
+    </div>
+    <div id="bat" class="card"><h3>Batteries</h3><div id="batList"></div></div>
+  </div>
+
+  <!-- Modern iPhones only: camera + mic to the Mac (needs HTTPS) -->
+  <div id="phone" class="view">
+    <div id="pvBox"><video id="pv" playsinline muted autoplay></video><div id="pvOff">Camera off</div></div>
+    <div id="pCtl">
+      <div class="pbtn" id="pCam"><b>Camera</b><span>Off</span></div>
+      <div class="pbtn" id="pMic"><b>Microphone</b><span>Off</span></div>
+      <div class="pbtn small" id="pFlip"><b>Flip camera</b></div>
+      <div id="pNote"></div>
+    </div>
+    <div id="pSetup">
+      <h2>One-time setup for camera &amp; mic</h2>
+      <p>1. <a href="/oldphonedeck.mobileconfig">Download the OldPhoneDeck profile</a>, tap <b>Allow</b>, then Settings → <b>Profile Downloaded</b> → Install.</p>
+      <p>2. Settings → General → About → <b>Certificate Trust Settings</b> → turn on OldPhoneDeck CA.</p>
+      <p>3. Open the <a id="httpsLink" href="#">secure deck</a>, then Share → Add to Home Screen.</p>
+    </div>
+  </div>
+
+  <div id="status">
+    <div id="clock"><span id="time">–</span><span id="ampm"></span><span id="date"></span></div>
+    <div id="seg"><div data-view="deck" class="on">Deck</div><div data-view="phone">Phone</div></div>
+    <div id="right"><span id="link"></span><span id="macName">Mac</span><span id="phoneBatt" style="display:none"><span class="batt"><i id="phoneBattFill"></i></span></span></div>
+  </div>
+
+  <!-- Ask Claude -->
+  <div id="claude" class="scrim">
+    <div class="sheet">
+      <h2><span class="dot"></span>Take a note <small>· starts a new Claude chat</small></h2>
+      <textarea id="askText" placeholder="Tap 🎤 on the keyboard and speak…"></textarea>
+      <div class="btns">
+        <div id="askMic"><svg width="14" height="18" viewBox="0 0 14 18"><rect x="4" y="0" width="6" height="11" rx="3" fill="#fff"/><path d="M1 8a6 6 0 0 0 12 0M7 14v3" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div>
+        <div class="btn primary" id="askSend">Start chat</div>
+        <div class="btn" id="askCancel">Cancel</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Choose the 7 apps -->
+  <div id="edit" class="scrim">
+    <div class="sheet">
+      <input id="filter" placeholder="Search apps" autocorrect="off" autocapitalize="none">
+      <div class="btns"><div class="btn primary" id="editSave">Save</div><div class="btn" id="editCancel">Cancel</div></div>
+      <div id="editCount"></div>
+      <div id="editList"></div>
+    </div>
+  </div>
+
+  <div id="login" class="scrim">
+    <div class="sheet">
+      <h2>Enter the access code from the Mac</h2>
+      <input id="code" autocapitalize="none" autocorrect="off">
+      <div class="btns"><div class="btn primary" id="go">Connect</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var APP_SLOTS = 7;   // 8 keys: 7 apps + Ask Claude
+  var modern = 'isSecureContext' in window;   // iOS 11.1+; the 4S is never "modern"
+
+  // ---------- plumbing ----------
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  var m = /k=([a-z0-9]+)/.exec(location.hash);
+  var token = m ? m[1] : store('token');
+  if (m) store('token', token);
+  function url(path, extra) { return path + '?k=' + token + (extra ? '&' + extra : ''); }
+  function xhr(method, path, body, cb) {
+    var r = new XMLHttpRequest();
+    r.open(method, path, true);
+    if (body !== null && body !== undefined) r.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    r.onload = function () { if (cb) cb(r.status, r.responseText); };
+    r.onerror = function () { if (cb) cb(0, ''); };
+    r.send(body === undefined ? null : body);
+  }
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, 1700);
+  }
+  // Tap handler: instant on touch (no 300 ms delay), works with a mouse too, shows a pressed state.
+  function tap(el, fn, hold) {
+    var moved, held, timer;
+    el.addEventListener('touchstart', function (e) {
+      moved = false; held = false; el.className += ' down';
+      if (hold) timer = setTimeout(function () { held = true; unpress(); hold(e); }, 550);
+    });
+    el.addEventListener('touchmove', function () { moved = true; clearTimeout(timer); unpress(); });
+    el.addEventListener('touchend', function (e) {
+      e.preventDefault(); clearTimeout(timer); unpress();
+      if (!moved && !held) fn(e);
+    });
+    el.addEventListener('click', function (e) { fn(e); });
+    function unpress() { el.className = el.className.replace(/ down/g, ''); }
+  }
+  function px(el, props) { for (var k in props) el.style[k] = props[k] + 'px'; }
+
+  // ---------- layout ----------
+  // Landscape: the stage is 320pt tall and as wide as the screen's shape (480 on a 4S, ~700 on an iPhone 17).
+  // Portrait (modern phones held upright): 360pt wide, keys on top, widgets below.
+  // The stage sits inside the safe area; the page background fills the rest of the screen.
+  var W = 480, H = 320, portrait = false;
+  function insets() {
+    var cs = window.getComputedStyle($('safe'));
+    return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0,
+             b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+  }
+  function fit() {
+    var iw = window.innerWidth, ih = window.innerHeight, ins = insets();
+    var aw = iw - ins.l - ins.r, ah = ih - ins.t - ins.b;
+    portrait = modern && ah > aw * 1.2;
+    if (portrait) { W = 360; H = Math.max(520, Math.round(360 * ah / aw)); }
+    else { H = 320; W = Math.max(480, Math.min(760, Math.round(320 * aw / ah))); }
+    var s = Math.min(aw / W, ah / H), st = $('stage');
+    st.style.width = W + 'px'; st.style.height = H + 'px';
+    st.style.webkitTransform = st.style.transform = 'scale(' + s + ')';
+    st.style.left = ins.l + (aw - W * s) / 2 + 'px';
+    st.style.top = ins.t + (ah - H * s) / 2 + 'px';
+    layout();
+  }
+  function layout() {
+    // Compact widgets: Internet (number + small graph) and Batteries (icon + %), stacked in one narrow column.
+    var net = $('net'), bat = $('bat'), cardW, netH = 104, batH;
+    net.className = bat.className = 'card';
+    $('hint').style.display = 'none';
+    if (portrait) {
+      // Everything in one centered stack: keys, now playing, then the two widgets side by side.
+      var stackH = 208 + 8 + 58 + 12 + netH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
+      $('seg').style.top = '50px';
+      px($('keys'), { left: (W - 316) / 2, top: top });
+      px($('music'), { left: 16, top: top + 208 + 4, width: W - 32 });
+      cardW = (W - 42) / 2; batH = netH;
+      var cardTop = top + 208 + 4 + 58 + 12;
+      px(net, { left: 16, top: cardTop, width: cardW, height: netH });
+      px(bat, { left: 16 + cardW + 10, top: cardTop, width: cardW });
+      var pvH = Math.round((W - 32) * 3 / 4);
+      px($('pvBox'), { left: 16, top: 72, width: W - 32, height: pvH });
+      px($('pCtl'), { left: 16, top: 72 + pvH + 14, width: W - 32 });
+    } else {
+      $('seg').style.top = '11px';
+      cardW = W >= 640 ? 150 : 128;
+      var right = W - 16, colLeft = right - cardW;
+      var keysArea = colLeft - 16 - 16;                       // left column: keys on top, now playing below
+      var keysLeft = 16 + Math.max(0, (keysArea - 316) / 2);
+      px($('keys'), { left: keysLeft, top: 52 });
+      px($('music'), { left: 16, top: 252, width: Math.max(316, keysArea) });
+      batH = 304 - (52 + netH + 10);
+      px(net, { left: colLeft, top: 52, width: cardW, height: netH });
+      px(bat, { left: colLeft, top: 52 + netH + 10, width: cardW });
+      var ctlW = W >= 640 ? 180 : 150;
+      px($('pvBox'), { left: 16, top: 42, width: W - 32 - ctlW - 12, height: 264 });
+      px($('pCtl'), { left: W - 16 - ctlW, top: 42, width: ctlW });
+    }
+    batteryRows = Math.max(2, Math.floor((batH - 40) / 30)) * 2;   // max chips that fit, two per row
+    var spark = $('spark'), sw = cardW - 24, sh = 18;
+    spark.width = sw * 2; spark.height = sh * 2;
+    px(spark, { width: sw, height: sh });
+    drawSpark(lastHistory); renderBatteries(lastBatteries);
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', function () { setTimeout(fit, 300); });
+
+  // ---------- views (Deck, plus Phone on modern iPhones) ----------
+  var view = 'deck';
+  function show(name) {
+    view = name;
+    $('deck').className = 'view' + (name === 'deck' ? ' on' : '');
+    $('phone').className = 'view' + (name === 'phone' ? ' on' : '');
+    var segs = $('seg').children;
+    for (var i = 0; i < segs.length; i++) segs[i].className = segs[i].getAttribute('data-view') === name ? 'on' : '';
+    if (name === 'phone') phoneEnter(); else pollStats();
+    store('view', name);
+  }
+  if (modern) {
+    $('seg').style.display = 'block';
+    var segs = $('seg').children;
+    for (var i = 0; i < segs.length; i++) (function (s) { tap(s, function () { show(s.getAttribute('data-view')); }); })(segs[i]);
+  }
+  function sheet(id, on) { $(id).className = 'scrim' + (on ? ' on' : ''); }
+  window.deckHome = function () { sheet('claude', false); sheet('edit', false); show('deck'); };
+
+  // ---------- clock ----------
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function tick() {
+    var d = new Date();
+    // Keep the device's 12/24h preference: split "1:31:05 AM" into "1:31" + "AM".
+    var m = /(\d{1,2}[:.]\d{2})(?:[:.]\d{2})?\s*([^\d\s]*)/.exec(d.toLocaleTimeString()) || [];
+    $('time').textContent = m[1] || (d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2));
+    $('ampm').textContent = m[2] || '';
+    $('date').textContent = DAYS[d.getDay()] + ' · ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
+  }
+  setInterval(tick, 10000);
+
+  // ---------- keys ----------
+  var launcher = { selected: null, all: [] };
+  // A notepad with a pencil: quick capture that becomes a Claude conversation.
+  var CLAUDE_SVG = '<svg width="36" height="36" viewBox="0 0 36 36">' +
+    '<rect x="7" y="5" width="19" height="26" rx="4.5" fill="#fff"/>' +
+    '<path d="M11.5 13h10M11.5 18h10M11.5 23h6" stroke="#c55e39" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<path d="M24 26.5l6.5-6.5 2.5 2.5-6.5 6.5-3.3.8z" fill="#fff" stroke="#c55e39" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+  function byPath(p) {
+    for (var i = 0; i < launcher.all.length; i++) if (launcher.all[i].path === p) return launcher.all[i];
+    return null;
+  }
+  function loadKeys() {
+    xhr('GET', url('/launcher'), null, function (s, text) {
+      if (s !== 200) return;
+      launcher = JSON.parse(text);
+      renderKeys();
+    });
+  }
+  function key(cls, label, inner, onTap, onHold) {
+    var k = document.createElement('div');
+    k.className = 'key ' + cls;
+    k.innerHTML = '<div class="cap">' + inner + '</div><div class="label"></div>';
+    k.lastChild.textContent = label;
+    tap(k, onTap, onHold);
+    return k;
+  }
+  function renderKeys() {
+    var box = $('keys'), apps = [];
+    (launcher.selected || []).forEach(function (p) { var a = byPath(p); if (a && apps.length < APP_SLOTS) apps.push(a); });
+    box.innerHTML = '';
+    for (var i = 0; i < APP_SLOTS; i++) {
+      (function (a) {
+        if (!a) { box.appendChild(key('empty', 'Add', '', openEditor, openEditor)); return; }
+        box.appendChild(key('', a.name, '<img src="' + url('/icon', 'path=' + encodeURIComponent(a.path)) + '">', function () {
+          xhr('POST', url('/launch'), 'path=' + encodeURIComponent(a.path), function (s) { toast(s === 200 ? 'Opening ' + a.name : 'Launch failed'); });
+        }, openEditor));
+      })(apps[i]);
+    }
+    box.appendChild(key('claude', 'Take note', CLAUDE_SVG, openClaude, function () {
+      xhr('POST', url('/claude'), 'text=', function () { toast('Claude is open on the Mac'); });
+    }));
+  }
+
+  // ---------- editor (hold any key) ----------
+  var draft = [];
+  function openEditor() {
+    draft = (launcher.selected || []).slice(0, APP_SLOTS);
+    $('filter').value = '';
+    sheet('edit', true);
+    renderEditor();
+  }
+  function renderEditor() {
+    var box = $('editList'), q = $('filter').value.toLowerCase();
+    box.innerHTML = '';
+    $('editCount').textContent = draft.length + ' of ' + APP_SLOTS + ' keys · ▲ moves an app earlier';
+    var chosen = draft.map(byPath).filter(function (a) { return a; });
+    var rest = launcher.all.filter(function (a) { return draft.indexOf(a.path) < 0; });
+    chosen.concat(rest).forEach(function (a) {
+      if (q && a.name.toLowerCase().indexOf(q) < 0) return;
+      var idx = draft.indexOf(a.path), on = idx >= 0, full = !on && draft.length >= APP_SLOTS;
+      var row = document.createElement('div');
+      row.className = 'erow' + (on ? ' on' : '') + (full ? ' full' : '');
+      row.innerHTML = '<div class="ck">' + (on ? idx + 1 : '') + '</div><img><div class="nm"></div>' + (idx > 0 ? '<div class="up">▲</div>' : '');
+      row.children[1].src = url('/icon', 'path=' + encodeURIComponent(a.path));
+      row.children[2].textContent = a.name;
+      if (idx > 0) row.lastChild.addEventListener('click', function (e) {
+        e.stopPropagation(); draft.splice(idx, 1); draft.splice(idx - 1, 0, a.path); renderEditor();
+      });
+      row.addEventListener('click', function () {
+        if (on) draft.splice(idx, 1);
+        else if (full) return toast('All 7 keys are used: remove one first');
+        else draft.push(a.path);
+        renderEditor();
+      });
+      box.appendChild(row);
+    });
+  }
+  $('filter').addEventListener('input', renderEditor);
+  tap($('editCancel'), function () { sheet('edit', false); });
+  tap($('editSave'), function () {
+    xhr('POST', url('/launcher'), 'paths=' + encodeURIComponent(draft.join('\n')), function (s) {
+      if (s !== 200) return toast('Save failed');
+      launcher.selected = draft.slice();
+      renderKeys(); sheet('edit', false); toast('Keys saved');
+    });
+  });
+
+  // ---------- Ask Claude ----------
+  // Modern iPhone over HTTPS: Safari's speech recognition starts listening right away.
+  // Otherwise (the 4S): focus the field so the keyboard's 🎤 dictation key is one tap away.
+  var ask = $('askText');
+  var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var canListen = !!(Recognition && window.isSecureContext), rec = null;
+  if (canListen) { $('askMic').style.display = 'block'; ask.placeholder = 'Listening… speak now'; }
+  function listen() {
+    if (rec) { rec.stop(); return; }
+    rec = new Recognition();
+    rec.lang = navigator.language || 'en-US';
+    rec.interimResults = true;
+    rec.continuous = false;
+    var finalText = '';
+    rec.onresult = function (e) {
+      var interim = '';
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+      }
+      ask.value = finalText + interim;
+    };
+    rec.onerror = function (e) { toast(e.error === 'not-allowed' ? 'Allow microphone + speech for this page' : 'Could not hear you'); };
+    rec.onend = function () {
+      rec = null; $('askMic').className = '';
+      if (finalText) sendAsk();   // stop talking → the chat starts
+    };
+    $('askMic').className = 'live';
+    rec.start();
+  }
+  function openClaude() {
+    sheet('claude', true);
+    if (canListen) { ask.value = ''; listen(); } else ask.focus();   // both must happen inside the tap
+  }
+  function sendAsk() {
+    var text = ask.value.replace(/^\s+|\s+$/g, '');
+    if (!text) { if (!canListen) ask.focus(); return toast('Say or type something first'); }
+    // Always sent: the note opens and starts a fresh conversation in Claude on the Mac.
+    xhr('POST', url('/claude'), 'text=' + encodeURIComponent('Note: ' + text) + '&send=1', function (s) {
+      if (s !== 200) return toast('Could not reach the Mac');
+      ask.value = ''; ask.blur(); sheet('claude', false);
+      toast('Note sent: new Claude chat started');
+    });
+  }
+  tap($('askMic'), listen);
+  tap($('askCancel'), function () { if (rec) rec.abort(); ask.blur(); sheet('claude', false); });
+  tap($('askSend'), sendAsk);
+
+  // ---------- widgets ----------
+  function fmt(n) { return n >= 100 ? Math.round(n) : n >= 10 ? n.toFixed(0) : n.toFixed(1); }
+  function ago(ms) {
+    var s = Math.round((Date.now() - ms) / 1000);
+    return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
+  }
+  var lastHistory = [];
+  function drawSpark(hist) {
+    lastHistory = hist || [];
+    var c = $('spark'), g = c.getContext('2d'), w = c.width, h = c.height;
+    g.clearRect(0, 0, w, h);
+    if (lastHistory.length < 2) return;
+    var max = 1; lastHistory.forEach(function (v) { if (v > max) max = v; });
+    g.beginPath();
+    lastHistory.forEach(function (v, i) {
+      var x = i * w / (lastHistory.length - 1), y = h - 3 - (v / max) * (h - 6);
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    });
+    g.strokeStyle = '#64d2ff'; g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke();
+    g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+    var grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(100,210,255,.35)'); grad.addColorStop(1, 'rgba(100,210,255,0)');
+    g.fillStyle = grad; g.fill();
+  }
+  // Small line icons per device kind, drawn like SF Symbols.
+  var ICONS = {
+    phone: '<rect x="4" y="1" width="6" height="12" rx="1.6"/><path d="M6.3 11h1.4"/>',
+    laptop: '<rect x="2.5" y="3" width="9" height="6" rx="1"/><path d="M1 11.5h12"/>',
+    keyboard: '<rect x="1" y="3.5" width="12" height="7" rx="1.5"/><path d="M3.5 6h.01M5.8 6h.01M8.2 6h.01M10.5 6h.01M4.5 8.3h5"/>',
+    mouse: '<rect x="4" y="1.5" width="6" height="11" rx="3"/><path d="M7 3.5v2"/>',
+    trackpad: '<rect x="2" y="2.5" width="10" height="9" rx="1.8"/>',
+    'case': '<rect x="2" y="4" width="10" height="7.5" rx="2.5"/><path d="M2 6.5h10"/>',
+    headphones: '<path d="M2.2 9V7.2a4.8 4.8 0 0 1 9.6 0V9"/><rect x="1.5" y="8.5" width="2.6" height="4" rx="1"/><rect x="9.9" y="8.5" width="2.6" height="4" rx="1"/>'
+  };
+  function icon(kind) {
+    return '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#aeaeb2" stroke-width="1.2" stroke-linecap="round">' +
+      (ICONS[kind] || ICONS.keyboard) + '</svg>';
+  }
+  var phone = null, batteryRows = 4;   // phone: the device's own battery, when the browser exposes it
+  window.deckPhone = function (s) { phone = s; renderPhone(); renderBatteries(lastBatteries); };
+  function renderPhone() {
+    if (!phone) return;
+    $('phoneBatt').style.display = '';
+    var f = $('phoneBattFill'), pct = Math.round(phone.level * 100);
+    f.style.width = Math.max(1, pct * 16 / 100) + 'px';
+    f.style.background = phone.charging ? '#30d158' : pct <= 20 ? '#ff453a' : '#fff';
+  }
+  // Modern Safari can read its own battery via the Battery API where available; harmless elsewhere.
+  if (navigator.getBattery) navigator.getBattery().then(function (b) {
+    function upd() { window.deckPhone({ level: b.level, charging: b.charging }); }
+    upd(); b.addEventListener('levelchange', upd); b.addEventListener('chargingchange', upd);
+  });
+  var lastBatteries = [];
+  function renderBatteries(list) {
+    lastBatteries = list || [];
+    var rows = lastBatteries.slice();
+    if (phone) rows.unshift({ name: 'iPhone', kind: 'phone', level: Math.round(phone.level * 100), charging: phone.charging });
+    var box = $('batList');
+    if (!rows.length) { box.innerHTML = '<div class="empty-note">No devices reporting</div>'; $('bat').style.height = '64px'; return; }
+    box.innerHTML = '';
+    var chips = [];
+    rows.forEach(function (b) {
+      chips.push({ kind: b.kind, level: b.level, charging: b.charging, name: b.name });
+      if (b['case'] !== undefined) chips.push({ kind: 'case', level: b['case'], name: b.name + ' case' });
+    });
+    chips = chips.slice(0, batteryRows);
+    // Shrink the card to fit: title + one 30pt row per two chips.
+    $('bat').style.height = (34 + Math.ceil(chips.length / 2) * 30 + 6) + 'px';
+    chips.forEach(function (b) {
+      var c = document.createElement('div');
+      c.className = 'chip';
+      c.title = b.name;
+      c.innerHTML = icon(b.kind) + '<b></b>';
+      var t = c.lastChild;
+      t.textContent = b.level + '%';
+      t.className = b.charging ? 'chg' : b.level <= 20 ? 'low' : b.level <= 40 ? 'mid' : '';
+      box.appendChild(c);
+    });
+  }
+  function pollStats() {
+    if (view !== 'deck') return;
+    xhr('GET', url('/stats'), null, function (s, text) {
+      $('link').className = s === 200 ? 'ok' : '';
+      if (s !== 200) return;
+      var d = JSON.parse(text);
+      $('macName').textContent = d.mac.replace(/^\S+['’]s?\s+/, '');
+      var sp = d.speed || {};
+      $('down').textContent = sp.down !== undefined ? fmt(sp.down) : '–';
+      $('up').textContent = sp.up !== undefined ? fmt(sp.up) : '–';
+      $('ping').textContent = sp.ping !== undefined ? Math.round(sp.ping) : '–';
+      $('net').title = sp.at ? 'Tested ' + ago(sp.at) : '';
+      $('netTitle').textContent = sp.running ? 'Testing…' : 'Internet';
+      drawSpark(d.net.history);
+      renderBatteries(d.batteries);
+      renderMusic(d.music);
+    });
+  }
+  setInterval(pollStats, 2000);
+  tap($('net'), function () {
+    xhr('POST', url('/speedtest'), '', function () { $('netTitle').textContent = 'Testing…'; toast('Running a speed test (~20 s)'); });
+  });
+
+  // ---------- now playing (Spotify / Apple Music on the Mac) ----------
+  var PLAY = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M5 3v10l8-5z" fill="#111"/></svg>';
+  var PAUSE = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4.5 3h2.6v10H4.5zM8.9 3h2.6v10H8.9z" fill="#111"/></svg>';
+  var track = { playing: false, position: 0, duration: 0, at: 0 }, artKey = '';
+  function setPlayIcon(playing) { $('mPlay').innerHTML = playing ? PAUSE : PLAY; }
+  function renderMusic(m) {
+    m = m || {};
+    $('mTitle').textContent = m.title || 'Nothing playing';
+    $('mArtist').textContent = m.title ? (m.artist || '') + (m.app ? ' · ' + m.app : '') : 'Spotify or Apple Music';
+    track = { playing: !!m.playing, position: m.position || 0, duration: m.duration || 0, at: Date.now() };
+    setPlayIcon(track.playing);
+    var key = m.id && m.hasArt ? m.id : '';
+    if (key !== artKey) {
+      artKey = key;
+      if (key) { $('mArt').src = url('/artwork', 'id=' + encodeURIComponent(key)); $('mArt').className = ''; }
+      else $('mArt').className = 'none';
+    }
+    tickProgress();
+  }
+  function tickProgress() {
+    if (!track.duration) { $('mProgFill').style.width = '0'; return; }
+    var pos = track.position + (track.playing ? (Date.now() - track.at) / 1000 : 0);
+    $('mProgFill').style.width = Math.min(100, pos / track.duration * 100) + '%';
+  }
+  setInterval(tickProgress, 1000);
+  function media(cmd) {
+    xhr('POST', url('/media'), 'cmd=' + cmd, function () { setTimeout(pollStats, 450); });
+  }
+  tap($('mPlay'), function () { setPlayIcon(!track.playing); track.playing = !track.playing; media('playpause'); });
+  tap($('mNext'), function () { media('next'); });
+  tap($('mPrev'), function () { media('previous'); });
+  tap($('mInfo'), function () { media('open'); toast('Opening the player on the Mac'); });
+  setPlayIcon(false);
+
+  // ---------- Phone tab: camera + mic to the Mac over a secure WebSocket ----------
+  // Messages: 1 type byte + payload. 'H' token, 'V' JPEG frame, 'A' 16 kHz mono s16le PCM.
+  // The Mac turns 'V' into its /camera.mjpg feed (OBS) and plays 'A' into BlackHole (the mic).
+  // Ports: plain http = base, https = base+2, secure WebSocket = base+3.
+  var secure = location.protocol === 'https:', here = Number(location.port || (secure ? 443 : 80));
+  var httpPort = secure ? here - 2 : here, wssPort = httpPort + 3;
+  var ws = null, camStream = null, micStream = null, facing = 'user', frameTimer = null, encoding = false;
+  var audioCtx = null, micNode = null, pv = $('pv');
+  function pack(t, bytes) {
+    var b = new Uint8Array(bytes.length + 1);
+    b[0] = t.charCodeAt(0); b.set(bytes, 1);
+    return b.buffer;
+  }
+  function wsReady() { return ws && ws.readyState === 1; }
+  function wsOpen() {
+    if (ws) return;
+    ws = new WebSocket('wss://' + location.hostname + ':' + wssPort + '/');
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = function () { ws.send(pack('H', new TextEncoder().encode(token))); phoneStatus(); };
+    ws.onclose = function () {
+      ws = null; phoneStatus();
+      if (camStream || micStream) setTimeout(wsOpen, 2000);   // Mac restarted or Wi-Fi blip
+    };
+  }
+  function phoneEnter() {
+    if (!window.isSecureContext) {
+      $('pvBox').style.display = $('pCtl').style.display = 'none';
+      $('pSetup').style.display = 'block';
+      $('httpsLink').href = 'https://' + location.hostname + ':' + (httpPort + 2) + '/#k=' + token;
+      return;
+    }
+    phoneStatus();
+  }
+  function phoneStatus() {
+    $('pCam').className = 'pbtn' + (camStream ? ' on' : '');
+    $('pMic').className = 'pbtn' + (micStream ? ' on' : '');
+    $('pCam').lastChild.textContent = camStream ? (wsReady() ? 'Streaming to Mac' : 'Connecting…') : 'Off';
+    $('pMic').lastChild.textContent = micStream ? (wsReady() ? 'Streaming → BlackHole' : 'Connecting…') : 'Off';
+    $('pvOff').style.display = camStream ? 'none' : '';
+    $('pNote').textContent = 'OBS Media Source: http://localhost:' + httpPort + '/camera.mjpg?k=' + token +
+      ' · Mic: choose “BlackHole 2ch” in your call app.';
+  }
+  function sendFrame() {
+    if (!wsReady() || encoding || ws.bufferedAmount > 400000 || !pv.videoWidth) return;   // drop frames, never lag
+    var c = sendFrame.canvas || (sendFrame.canvas = document.createElement('canvas'));
+    var w = 960, h = Math.round(960 * pv.videoHeight / pv.videoWidth);
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(pv, 0, 0, w, h);
+    encoding = true;
+    c.toBlob(function (blob) {
+      if (!blob) { encoding = false; return; }
+      blob.arrayBuffer().then(function (ab) {
+        encoding = false;
+        if (wsReady()) ws.send(pack('V', new Uint8Array(ab)));
+      });
+    }, 'image/jpeg', 0.6);
+  }
+  function startCam() {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+      .then(function (s) {
+        camStream = s; pv.srcObject = s; pv.play();
+        wsOpen();
+        frameTimer = setInterval(sendFrame, 1000 / 15);
+        phoneStatus();
+      }, function () { toast('Camera blocked: allow it for this page'); });
+  }
+  function stopCam() {
+    clearInterval(frameTimer);
+    if (camStream) camStream.getTracks().forEach(function (t) { t.stop(); });
+    camStream = null; pv.srcObject = null; phoneStatus();
+  }
+  function startMic() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();   // created inside the tap so iOS lets it run
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })
+      .then(function (s) {
+        micStream = s;
+        var src = audioCtx.createMediaStreamSource(s);
+        micNode = audioCtx.createScriptProcessor(4096, 1, 1);
+        var ratio = audioCtx.sampleRate / 16000;
+        micNode.onaudioprocess = function (e) {
+          if (!wsReady()) return;
+          var input = e.inputBuffer.getChannelData(0), n = Math.floor(input.length / ratio), out = new Int16Array(n);
+          for (var i = 0; i < n; i++) {   // average each window: a cheap low-pass while downsampling to 16 kHz
+            var a = Math.floor(i * ratio), b = Math.floor((i + 1) * ratio), sum = 0;
+            for (var j = a; j < b; j++) sum += input[j];
+            var v = sum / Math.max(1, b - a);
+            out[i] = v < -1 ? -32768 : v > 1 ? 32767 : v * 32767;
+          }
+          ws.send(pack('A', new Uint8Array(out.buffer)));
+        };
+        src.connect(micNode); micNode.connect(audioCtx.destination);   // outputs silence; keeps the node running
+        wsOpen(); phoneStatus();
+      }, function () { toast('Microphone blocked: allow it for this page'); audioCtx.close(); audioCtx = null; });
+  }
+  function stopMic() {
+    if (micNode) micNode.disconnect();
+    if (micStream) micStream.getTracks().forEach(function (t) { t.stop(); });
+    if (audioCtx) audioCtx.close();
+    micStream = micNode = audioCtx = null; phoneStatus();
+  }
+  if (modern) {
+    tap($('pCam'), function () { if (camStream) stopCam(); else startCam(); });
+    tap($('pMic'), function () { if (micStream) stopMic(); else startMic(); });
+    tap($('pFlip'), function () {
+      facing = facing === 'user' ? 'environment' : 'user';
+      if (camStream) { stopCam(); startCam(); }
+      toast(facing === 'user' ? 'Front camera' : 'Back camera');
+    });
+  }
+
+  // ---------- boot ----------
+  function connect() {
+    xhr('GET', url('/info'), null, function (s) {
+      if (s === 403 || !token) { sheet('login', true); return; }
+      if (s !== 200) { $('link').className = ''; setTimeout(connect, 2000); return; }
+      sheet('login', false);
+      loadKeys();
+      show(modern && store('view') === 'phone' ? 'phone' : 'deck');
+      if (/edit/.test(location.search)) setTimeout(openEditor, 300);
+    });
+  }
+  tap($('go'), function () {
+    token = $('code').value.replace(/\s/g, '').toLowerCase();
+    store('token', token); location.hash = 'k=' + token; connect();
+  });
+  fit(); tick(); connect();
+})();
+</script>
+</body>
+</html>
