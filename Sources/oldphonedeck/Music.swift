@@ -24,8 +24,17 @@ final class Music {
     private func set(_ update: () -> Void) { lock.lock(); update(); lock.unlock() }
 
     /// Prefers whichever app is actually playing; if neither is, shows the paused one.
-    private static let nowPlayingScript = """
-    set out to ""
+    /// AppleScript resolves app-specific terms when the script compiles, so a script that
+    /// mentions Spotify fails entirely when Spotify isn't installed. Only include it if it is.
+    static let hasSpotify: Bool = {
+        let paths = ["/Applications/Spotify.app", NSHomeDirectory() + "/Applications/Spotify.app"]
+        return paths.contains { FileManager.default.fileExists(atPath: $0) }
+    }()
+    static let defaultApp = hasSpotify ? "Spotify" : "Music"
+
+    private static var nowPlayingScript: String { "set out to \"\"\n" + (hasSpotify ? spotifyPart : "") + musicPart }
+
+    private static let spotifyPart = """
     if application "Spotify" is running then
       tell application "Spotify"
         try
@@ -34,6 +43,10 @@ final class Music {
         end try
       end tell
     end if
+
+    """
+
+    private static let musicPart = """
     if application "Music" is running then
       tell application "Music"
         try
@@ -87,7 +100,7 @@ final class Music {
     /// cmd: playpause | next | previous. Goes to the app shown on the deck.
     func control(_ cmd: String) {
         queue.async {
-            let app = (self.current["app"] as? String) ?? "Spotify"
+            let app = (self.current["app"] as? String) ?? Music.defaultApp
             let verb = ["playpause": "playpause", "next": "next track", "previous": "previous track"][cmd]
             guard let verb else { return }
             _ = Music.osascript("tell application \"\(app)\" to \(verb)")
@@ -97,7 +110,7 @@ final class Music {
     }
 
     func openPlayer() {
-        let app = (snapshot()["app"] as? String) ?? "Spotify"
+        let app = (snapshot()["app"] as? String) ?? Music.defaultApp
         _ = Music.osascript("tell application \"\(app)\" to activate")
     }
 
