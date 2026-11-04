@@ -122,6 +122,8 @@
   .anote { left: 0; right: 0; top: 0; font-size: 11px; line-height: 15px; color: #8e8e93; display: none; background: transparent; }
   .acard.off .ag, .acard.off .amem, .acard.off .atop { visibility: hidden; }
   .acard.off .anote { display: block; }
+  /* Deck, narrow column (tablets): label at the left of each graph, swap under the memory bar. */
+  .acol .asw { position: absolute; left: 0; right: 0; top: 27px; margin-left: 0; overflow: hidden; text-overflow: ellipsis; }
   /* Deck on a phone in landscape: one 34pt strip, CPU and memory only. */
   .astrip h3, .astrip canvas, .astrip .abar, .astrip .asw, .astrip .atop { display: none; }
   .astrip .cbody { top: 0; bottom: 0; }
@@ -229,6 +231,7 @@
   #login .sheet { top: 40px; text-align: center; }
   #code { width: 70%; height: 32px; border: 0; border-radius: 9px; background: #2c2c2e; color: #fff; text-align: center; font-size: 16px; }
 </style>
+<style id="keyGap"></style>
 </head>
 <body>
 <div id="safe"></div>
@@ -324,11 +327,15 @@
   var $ = function (id) { return document.getElementById(id); };
   var APP_SLOTS = 7;   // app keys; Take note is one more. Set from the Mac (/launcher "slots"): 7, 9 or 11
   var KEY = 70, GAP = 12, ROWH = 104;   // key cap, gap between keys, row height (cap + label + margin)
-  function keyCols() { return (APP_SLOTS + 1) / 2; }
+  var KROWS = 2;   // rows of keys: always 2 on phones; 3 on a tablet held upright with 12 keys
+  function keyCols() { return Math.ceil((APP_SLOTS + 1) / KROWS); }
   function keysW() { return keyCols() * (KEY + GAP) - GAP; }
-  // Places the key grid inside a box: shrinks it (never enlarges) to fit, centers it horizontally.
-  function placeKeys(left, top, avail) {
-    var s = Math.min(1, avail / keysW()), k = $('keys');
+  function keysH() { return KROWS * ROWH - 14; }   // without the last row's bottom margin
+  // Places the key grid inside a box: shrinks it to fit (enlarges up to maxS on tablets), centers it horizontally.
+  // extra: more space between rows (tablets only), in key units.
+  function placeKeys(left, top, avail, maxS, extra) {
+    var s = Math.min(maxS || 1, avail / keysW()), k = $('keys');
+    $('keyGap').textContent = extra ? '#keys .key { margin-bottom: ' + (14 + extra) + 'px; }' : '';
     k.style.width = keysW() + 'px';
     k.style.webkitTransformOrigin = k.style.transformOrigin = '0 0';
     k.style.webkitTransform = k.style.transform = 'scale(' + s + ')';
@@ -374,13 +381,20 @@
     el.addEventListener('click', function (e) { fn(e); });
     function unpress() { el.className = el.className.replace(/ down/g, ''); }
   }
+  // Places a box zoomed by z (transform), so its contents grow with it; w and h are the size on the stage.
+  function zoomBox(el, left, top, w, h, z) {
+    el.style.webkitTransformOrigin = el.style.transformOrigin = '0 0';
+    el.style.webkitTransform = el.style.transform = z === 1 ? '' : 'scale(' + z + ')';
+    px(el, { left: left, top: top, width: w / z });
+    if (h) px(el, { height: h / z });
+  }
   function px(el, props) { for (var k in props) el.style[k] = props[k] + 'px'; }
 
   // ---------- layout ----------
   // Landscape: the stage is 320pt tall and as wide as the screen's shape (480 on a 4S, ~700 on an iPhone 17).
   // Portrait (modern phones held upright): 360pt wide, keys on top, widgets below.
   // The stage sits inside the safe area; the page background fills the rest of the screen.
-  var W = 480, H = 320, portrait = false;
+  var W = 480, H = 320, portrait = false, large = false, SC = 1;
   function insets() {
     var cs = window.getComputedStyle($('safe'));
     return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0,
@@ -390,9 +404,18 @@
     var iw = window.innerWidth, ih = window.innerHeight, ins = insets();
     var aw = iw - ins.l - ins.r, ah = ih - ins.t - ins.b;
     portrait = modern && ah > aw * 1.2;
-    if (portrait) { W = 360; H = Math.max(520, Math.round(360 * ah / aw)); }
-    else { H = 320; W = Math.max(480, Math.min(760, Math.round(320 * aw / ah))); }
-    var s = Math.min(aw / W, ah / H), st = $('stage');
+    // Tablets (short side 600pt+, never a phone): keep a phone-like scale and grow the stage to fill the screen.
+    large = modern && Math.min(aw, ah) >= 600;
+    var s, st = $('stage');
+    if (large) {
+      s = Math.min(1.8, Math.max(1.2, Math.min(aw, ah) / 480));
+      W = Math.floor(aw / s); H = Math.floor(ah / s);
+    } else {
+      if (portrait) { W = 360; H = Math.max(520, Math.round(360 * ah / aw)); }
+      else { H = 320; W = Math.max(480, Math.min(760, Math.round(320 * aw / ah))); }
+      s = Math.min(aw / W, ah / H);
+    }
+    SC = s;
     st.style.width = W + 'px'; st.style.height = H + 'px';
     st.style.webkitTransform = st.style.transform = 'scale(' + s + ')';
     st.style.left = ins.l + (aw - W * s) / 2 + 'px';
@@ -404,19 +427,76 @@
     var net = $('net'), bat = $('bat'), act = $('act'), cardW, netH = 104, batH, actH, actW = 0, actMode;
     net.className = bat.className = 'card';
     $('hint').style.display = 'none';
-    if (portrait) {
+    // Full-stage sheets: on a tablet keep them to a readable column instead of the whole screen width.
+    var sm = large ? Math.max(8, Math.round((W - 680) / 2)) : 8, sl = ['edit'];
+    for (var i = 0; i < sl.length; i++) px($(sl[i]).firstElementChild, { left: sm, right: sm });
+    var z = 1, sparkH = 18;   // z: extra zoom of now playing and the widgets on tablets
+    if (large) {
+      // Tablet: the deck fills the screen under the header. Keys grow up to ~140pt caps, now playing runs along
+      // the bottom, the two widgets take the rest; both are zoomed by z so their text grows with them.
+      var kmax = 140 / (KEY * SC), M = 16, B = H - 14, mH, k, gh, extra = 0;
+      z = 1.2; mH = Math.round(52 * z);
+      KROWS = portrait && APP_SLOTS + 1 >= 12 ? 3 : 2;   // 12 keys upright: 3 rows of 4 fill the height better than 2 of 6
+      markLast();
+      if (!portrait) {
+        var T = 56, CWl = W - 2 * M, boxH = B - mH - 16 - T;
+        k = Math.min(kmax, (CWl - 16 - 180) / keysW(), boxH / keysH());
+        var leftW = Math.round(keysW() * k);
+        extra = Math.min(40, Math.max(0, Math.round((boxH / k - keysH()) / 3)));   // a third of the spare goes between the rows
+        gh = (keysH() + extra) * k;
+        $('seg').style.top = '11px';
+        placeKeys(M, T + Math.round((boxH - gh) / 2), leftW, kmax, extra);
+        zoomBox($('music'), M, B - mH, leftW, 0, z);
+        var cx = M + leftW + 16;
+        // One column, top to bottom: Internet, Activity (the rest), Batteries (two rows of chips).
+        cardW = W - M - cx;
+        z = Math.min(z, cardW / 150);
+        netH = Math.round(100 * z); batH = Math.round((40 + batFit * 30) * z); actH = B - T - 24 - netH - batH; actMode = 'col';
+        zoomBox(net, cx, T, cardW, netH, z);
+        zoomBox(act, cx, T + netH + 12, cardW, actH, z);
+        zoomBox(bat, cx, T + netH + 12 + actH + 12, cardW, batH, z);
+      } else {
+        var Tp = 90, CWp = W - 2 * M;
+        k = Math.min(kmax, CWp / keysW());
+        gh = keysH() * k;
+        $('seg').style.top = '50px';
+        placeKeys(M, Tp, CWp, kmax, 0);
+        zoomBox($('music'), M, B - mH, CWp, 0, z);
+        var cardTop = Math.round(Tp + gh + 18);
+        // Internet on the left, full height; Activity above Batteries on the right.
+        cardW = (CWp - 12) / 2; netH = B - mH - 16 - cardTop;
+        batH = Math.round((40 + batFit * 30) * z); actH = netH - 12 - batH; actMode = 'col';
+        zoomBox(net, M, cardTop, cardW, netH, z);
+        zoomBox(act, M + cardW + 12, cardTop, cardW, actH, z);
+        zoomBox(bat, M + cardW + 12, cardTop + actH + 12, cardW, batH, z);
+      }
+      cardW = cardW / z; batH = batH / z;
+      sparkH = Math.max(12, Math.min(140, Math.floor((netH / z - 69) / 2)));
+      if (portrait) {
+        var pvHp = Math.round((W - 32) * 3 / 4);
+        px($('pvBox'), { left: 16, top: 72, width: W - 32, height: pvHp });
+        px($('pCtl'), { left: 16, top: 72 + pvHp + 14, width: W - 32 });
+        px($('pvOff'), { top: Math.round(pvHp / 2) - 10 });
+      } else {
+        var ctlW = 220, pvH = H - 42 - 16;
+        px($('pvBox'), { left: 16, top: 42, width: W - 32 - ctlW - 12, height: pvH });
+        px($('pCtl'), { left: W - 16 - ctlW, top: 42, width: ctlW });
+        px($('pvOff'), { top: Math.round(pvH / 2) - 10 });
+      }
+    } else if (portrait) {
       // Everything in one centered stack: keys, now playing, then the two widgets side by side.
-      var kh = Math.round(2 * ROWH * Math.min(1, (W - 32) / keysW()));
-      actH = 140; actW = W - 32; actMode = 'wide';   // under the two widgets, full width: graphs side by side, memory, busiest apps
+      var M = 16, CWp = W - 32;
+      var kh = Math.round(2 * ROWH * Math.min(1, CWp / keysW()));
+      actH = 140; actW = CWp; actMode = 'wide';   // under the two widgets, full width: graphs side by side, memory, busiest apps
       var stackH = kh + 8 + 58 + 12 + netH + 10 + actH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
       $('seg').style.top = '50px';
-      placeKeys(16, top, W - 32);
-      px($('music'), { left: 16, top: top + kh + 4, width: W - 32 });
-      cardW = (W - 42) / 2; batH = netH;
+      placeKeys(M, top, CWp);
+      px($('music'), { left: M, top: top + kh + 4, width: CWp });
+      cardW = (CWp - 10) / 2; batH = netH;
       var cardTop = top + kh + 4 + 58 + 12;
-      px(net, { left: 16, top: cardTop, width: cardW, height: netH });
-      px(bat, { left: 16 + cardW + 10, top: cardTop, width: cardW });
-      px(act, { left: 16, top: cardTop + netH + 10, width: W - 32, height: actH });
+      px(net, { left: M, top: cardTop, width: cardW, height: netH });
+      px(bat, { left: M + cardW + 10, top: cardTop, width: cardW });
+      px(act, { left: M, top: cardTop + netH + 10, width: CWp, height: actH });
       var pvH = Math.round((W - 32) * 3 / 4);
       px($('pvBox'), { left: 16, top: 72, width: W - 32, height: pvH });
       px($('pCtl'), { left: 16, top: 72 + pvH + 14, width: W - 32 });
@@ -428,7 +508,7 @@
       placeKeys(16, 52, keysArea);
       px($('music'), { left: 16, top: 252, width: Math.max(316, keysArea) });
       // The column is 252pt tall: Internet's two graphs, a 34pt Activity strip (CPU and memory: is the Mac
-      // struggling?) and two rows of batteries. GPU, swap and busiest apps show when the phone is upright.
+      // struggling?) and two rows of batteries. GPU, swap and busiest apps show upright and on tablets.
       netH = 102; actH = 34; actMode = 'strip';
       batH = 304 - (52 + netH + 8 + actH + 8);
       px(net, { left: colLeft, top: 52, width: cardW, height: netH });
@@ -439,13 +519,15 @@
       px($('pCtl'), { left: W - 16 - ctlW, top: 42, width: ctlW });
     }
     batteryRows = Math.max(2, Math.floor((batH - 40) / 30)) * 2;   // max chips that fit, two per row
-    var sw = cardW - 24, sh = Math.floor((netH - 69) / 2), sp = [$('spark'), $('sparkUp')];
-    for (var si = 0; si < 2; si++) { sp[si].width = sw * 2; sp[si].height = sh * 2; px(sp[si], { width: sw, height: sh }); }
+    if (!large) sparkH = Math.floor((netH - 69) / 2);
+    var sw = cardW - 24, sh = sparkH, sp = [$('spark'), $('sparkUp')];
+    for (var si = 0; si < 2; si++) { sp[si].width = sw * 2 * z; sp[si].height = sh * 2 * z; px(sp[si], { width: sw, height: sh }); }
     drawSpark(lastHistory, lastHistoryUp);
-    deckActSize(actMode, actW || cardW, actH);
-    renderBatteries(lastBatteries);
+    deckActSize(actMode, actW || cardW, large ? actH / z : actH, z);
+    renderBatteries(lastBatteries);   // last: on tablets it may lay out again with a different Batteries height
   }
   window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', function () { setTimeout(fit, 300); });
   window.addEventListener('orientationchange', function () { setTimeout(fit, 300); });
 
   // ---------- views (Deck, plus Phone on modern iPhones) ----------
@@ -522,8 +604,15 @@
     box.appendChild(key('claude', 'Take note', CLAUDE_SVG, openClaude, function () {
       xhr('POST', url('/claude'), 'text=', function () { toast('Claude is open on the Mac'); });
     }));
-    // Last key of each row has no right margin (the row count is 2, columns depend on APP_SLOTS).
-    for (var j = 0; j < box.children.length; j++) if ((j + 1) % keyCols() === 0) box.children[j].className += ' last';
+    markLast();
+  }
+  // Last key of each row has no right margin (columns depend on APP_SLOTS and KROWS).
+  function markLast() {
+    var box = $('keys');
+    for (var j = 0; j < box.children.length; j++) {
+      var c = box.children[j];
+      c.className = c.className.replace(/ last/g, '') + ((j + 1) % keyCols() === 0 ? ' last' : '');
+    }
   }
 
   // ---------- editor (hold any key) ----------
@@ -687,7 +776,7 @@
     return '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#aeaeb2" stroke-width="1.2" stroke-linecap="round">' +
       (ICONS[kind] || ICONS.keyboard) + '</svg>';
   }
-  var phone = null, batteryRows = 4;   // phone: the device's own battery, when the browser exposes it
+  var phone = null, batteryRows = 4, batFit = 2;   // phone: the device's own battery, when the browser exposes it
   window.deckPhone = function (s) { phone = s; renderPhone(); renderBatteries(lastBatteries); };
   function renderPhone() {
     if (!phone) return;
@@ -707,16 +796,19 @@
     var rows = lastBatteries.slice();
     if (phone) rows.unshift({ name: 'iPhone', kind: 'phone', level: Math.round(phone.level * 100), charging: phone.charging });
     var box = $('batList');
-    if (!rows.length) { box.innerHTML = '<div class="empty-note">No devices reporting</div>'; $('bat').style.height = '64px'; return; }
+    if (!rows.length) { box.innerHTML = '<div class="empty-note">No devices reporting</div>'; if (!large) $('bat').style.height = '64px'; return; }
     box.innerHTML = '';
     var chips = [];
     rows.forEach(function (b) {
       chips.push({ kind: b.kind, level: b.level, charging: b.charging, name: b.name });
       if (b['case'] !== undefined) chips.push({ kind: 'case', level: b['case'], name: b.name + ' case' });
     });
+    // Tablets: Batteries takes one or two rows of chips, as many as needed, and Activity the rest.
+    var fitRows = chips.length > 2 ? 2 : 1;
+    if (large && fitRows !== batFit) { batFit = fitRows; return layout(); }
     chips = chips.slice(0, batteryRows);
     // Shrink the card to fit: title + one 30pt row per two chips.
-    $('bat').style.height = (34 + Math.ceil(chips.length / 2) * 30 + 6) + 'px';
+    if (!large) $('bat').style.height = (34 + Math.ceil(chips.length / 2) * 30 + 6) + 'px';   // tablets: layout() sets it
     chips.forEach(function (b) {
       var c = document.createElement('div');
       c.className = 'chip';
@@ -758,8 +850,8 @@
   });
 
   // ---------- Activity card: CPU and GPU over the last 10 minutes, memory and its pressure, swap, busiest apps ----------
-  // GET /activity, polled with /stats. mode: 'wide' (phone upright: graphs side by side, memory, busiest apps)
-  // or 'strip' (phone in landscape: one 34pt row with CPU and memory in use).
+  // GET /activity, polled with /stats. mode: 'wide' (phone upright: graphs side by side, memory, busiest apps),
+  // 'strip' (phone in landscape: one 34pt row with CPU and memory in use) or 'col' (tablet column).
   function gb(b) { return (b / 1073741824).toFixed(b >= 10737418240 ? 0 : 1); }
   var dact = null;
   function deckAct() {
@@ -777,12 +869,31 @@
       note: body.querySelector('.anote'), d: null, compact: false } };
     return dact;
   }
-  function deckActSize(mode, w, h) {
-    var a = deckAct(), st = a.st, r = window.devicePixelRatio || 2, i, gw;
+  function deckActSize(mode, w, h, z) {
+    var a = deckAct(), st = a.st, r = (window.devicePixelRatio || 2) * Math.max(1, SC) * (z || 1), i, gw;
+    var als = [st.g[0].firstChild, st.g[1].firstChild];
     a.mode = mode;
-    st.card.className = st.card.className.replace(/ (astrip|arow)\b/g, '') + (mode === 'strip' ? ' astrip' : '');
-    for (i = 0; i < 2; i++) { st.g[i].style.display = ''; st.cv[i].style.display = ''; }
+    st.card.className = st.card.className.replace(/ (acol|astrip|arow)\b/g, '') + (mode === 'col' ? ' acol' : mode === 'strip' ? ' astrip' : '');
+    for (i = 0; i < 2; i++) { als[i].style.height = als[i].style.lineHeight = ''; st.g[i].style.display = ''; st.cv[i].style.display = ''; }
     st.top.style.display = st.sw.style.display = '';
+    if (mode === 'col') {
+      // Column: CPU and GPU rows with the label at the left of the graph, memory with its bar, swap under it,
+      // and the busiest apps when a line is left.
+      var cw = w - 24, bh = h - 40, memH = bh >= 80 ? 40 : 28, TOPc = bh - memH - 2 * 24 >= 16 ? 16 : 0;
+      var rh = Math.min(44, Math.floor((bh - memH - TOPc) / 2)), LW = 70;
+      st.memK.textContent = 'MEM'; st.compact = true;
+      for (i = 0; i < 2; i++) {
+        px(st.g[i], { left: 0, top: i * rh, width: cw, height: rh });
+        als[i].style.height = als[i].style.lineHeight = rh + 'px';
+        st.cv[i].width = Math.round((cw - LW) * r); st.cv[i].height = Math.round((rh - 8) * r);
+        px(st.cv[i], { left: LW, top: 4, width: cw - LW, height: rh - 8 });
+      }
+      px(st.mem, { left: 0, top: 2 * rh, width: cw, height: memH });
+      st.sw.style.display = memH > 28 ? '' : 'none';
+      st.top.style.display = TOPc ? '' : 'none';
+      px(st.top, { left: 0, top: 2 * rh + memH, width: cw });
+      return deckActDraw();
+    }
     if (mode === 'strip') {
       // Two cells: CPU and memory in use, the memory value colored by pressure.
       var bw = w - 24;

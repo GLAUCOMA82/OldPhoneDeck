@@ -40,6 +40,8 @@ In a terminal it prints two links: `https://192.168.x.x:8047/#k=<token>` for mod
 2. Tap **Share → Add to Home Screen** and launch it from there to run it full screen.
 3. **Hold any key** to choose your 7 apps.
 
+On an iPad the deck fills the screen in both orientations: bigger keys, now playing along the bottom, the widgets in a column (with 12 keys held upright, three rows of four), and sheets kept to a readable column.
+
 Tips for a dedicated desk display: set **Auto-Lock → Never**, and use **Guided Access** (Settings → Accessibility) to lock the phone to the deck.
 
 ### macOS permissions (asked on first use)
