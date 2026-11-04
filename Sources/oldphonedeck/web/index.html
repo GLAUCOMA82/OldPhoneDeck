@@ -272,7 +272,11 @@
     var r = new XMLHttpRequest();
     r.open(method, path, true);
     if (body !== null && body !== undefined) r.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    r.onload = function () { if (cb) cb(r.status, r.responseText); };
+    r.onload = function () {
+      // The Mac refuses actions that type or run things when the page is on plain http (see Security.swift).
+      if (r.status === 403 && r.responseText.indexOf('HTTPS required') === 0) toast('Only from the https page');
+      if (cb) cb(r.status, r.responseText);
+    };
     r.onerror = function () { if (cb) cb(0, ''); };
     r.send(body === undefined ? null : body);
   }
