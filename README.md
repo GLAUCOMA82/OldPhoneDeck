@@ -34,7 +34,7 @@ swift build -c release
 .build/release/oldphonedeck
 ```
 
-It prints a link like `http://192.168.x.x:8045/#k=<token>`. On the phone:
+In a terminal it prints two links: `https://192.168.x.x:8047/#k=<token>` for modern iPhones (set up the certificate first, see below) and `http://192.168.x.x:8045/#k=<token-http>` for old ones that can't do HTTPS. On the phone:
 
 1. Open that link in **Safari**.
 2. Tap **Share → Add to Home Screen** and launch it from there to run it full screen.
@@ -69,8 +69,8 @@ Safari only allows the microphone, camera and speech recognition on **HTTPS** pa
 ```
 iPhone (Safari)                     Mac: oldphonedeck (Swift, no dependencies)
 ┌──────────────────────┐  Wi-Fi    ┌───────────────────────────────────────────────────┐
-│ deck page            │ ────────▶ │ :8045 HTTP   page, apps, stats, music, Take note  │
-│ (ES5 JavaScript so   │           │ :8047 HTTPS  same, for modern iPhones             │
+│ deck page            │ ────────▶ │ :8045 HTTP   page, apps, stats, music, old iPhone │
+│ (ES5 JavaScript so   │           │ :8047 HTTPS  everything, Take note, camera        │
 │  iOS 8/9 can run it) │ ────────▶ │ :8048 WSS    camera frames + mic audio            │
 └──────────────────────┘           └───────────────────────────────────────────────────┘
 ```
@@ -80,7 +80,9 @@ iPhone (Safari)                     Mac: oldphonedeck (Swift, no dependencies)
 | App keys | `NSWorkspace` lists `/Applications`, renders icons, opens apps |
 | Take note | Opens `claude://claude.ai/new?q=…` (the same link the Claude app's own macOS Service uses), then presses Return |
 | Now playing | AppleScript to Spotify / Music, with a timeout so a pending permission prompt can't freeze it |
-| Internet | `/usr/bin/networkQuality -c` + `en*` interface byte counters |
+| Volume | The speaker button in the player opens a slider for the Mac's output volume, set through AppleScript run in-process (`NSAppleScript`, one thread, compiled scripts cached) |
+| Internet | `/usr/bin/networkQuality -c` (tap the card) + `en*` interface byte counters: live download and upload, each with its own graph and scale |
+| Activity | `host_statistics` for CPU, the GPU's `PerformanceStatistics` in IOKit, `host_statistics64` and `sysctl` for memory, pressure and swap, `ps` for the busiest apps (read only while the page asks); `GET /activity` |
 | Batteries | IOKit power sources, `ioreg -r -k BatteryPercent`, `system_profiler SPBluetoothDataType` |
 | HTTPS | Local CA and server certificate generated with the built-in `openssl`, served as an iOS profile |
 
@@ -93,13 +95,21 @@ oldphonedeck --port 8045           # HTTP port (HTTPS = port+2, WebSocket = port
 oldphonedeck --mic-device NAME     # audio output that receives the phone's mic (default: BlackHole)
 ```
 
-Settings live in `~/.oldphonedeck/`: `token` (the access code), `launcher.json` (your keys) and `tls/` (certificates).
+Settings live in `~/.oldphonedeck/`: `token` (the access code), `token-http` (the limited code for plain HTTP), `launcher.json` (your keys), `tls/` (certificates) and the optional `config.json` (allowed networks, see Security).
 
 ## Security
 
-- It listens on your **local network only**, and every request needs the random token from `~/.oldphonedeck/token`.
-- Anyone with the link on your Wi-Fi can open apps on your Mac, so **treat the URL like a password** and **never port-forward it to the internet**.
-- Delete `~/.oldphonedeck/token` to issue a new one.
+- **Who can connect.** Only this Mac and private LAN addresses (10/8, 172.16/12, 192.168/16, IPv6 link-local and ULA). Tailscale and other CGNAT tailnets (100.64.0.0/10, fd7a:115c:a1e0::/48) are refused even though the Mac listens on them, and the first refusal from each address is logged. To change it, write `~/.oldphonedeck/config.json`; its `allow` list replaces the defaults (loopback is always allowed, a tailnet is allowed only if a range inside it is listed):
+
+  ```json
+  {"allow": ["192.168.1.0/24", "fe80::/10"]}
+  ```
+
+- **Two tokens.** `~/.oldphonedeck/token` opens everything, but only over HTTPS or from this Mac itself (OBS on `localhost`): on plain HTTP from the network it is refused, so it never has to cross the Wi-Fi in clear. `~/.oldphonedeck/token-http` is for old iPhones that only do plain HTTP and opens only apps, playback, volume, stats and activity (`Access.plainHTTPRoutes` in `Security.swift`). Take note, the camera and editing the keys answer `403 HTTPS required` with it.
+- Tokens are compared in constant time and checked from the request head, before the body is read; bodies are capped at 64 KB, larger ones get `413`. The startup links with the tokens are printed only to a terminal, never into a log file.
+- The local CA is name-constrained to the Mac's LAN /24, 127.0.0.1 and `localhost`, so even a leaked `ca.key` could not impersonate a real website on a phone that trusts it (this applies to CAs created from now on: delete `~/.oldphonedeck/tls` and reinstall the profile to get one).
+- Anyone with the full link can open apps and send text to Claude on your Mac, so **treat it like a password** and **never port-forward it to the internet**.
+- Delete `~/.oldphonedeck/token` or `token-http` to issue a new one.
 
 ## Troubleshooting
 

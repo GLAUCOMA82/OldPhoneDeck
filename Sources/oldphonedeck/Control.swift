@@ -64,6 +64,19 @@ enum Apps {
 /// home-screen app (which have separate storage on iOS) see the same list.
 enum Launcher {
     static let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".oldphonedeck/launcher.json")
+    static let slotsFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".oldphonedeck/slots")
+    /// Number of app keys (Take note is always one more). Allowed: 7, 9, 11.
+    static let allowedSlots = [7, 9, 11]
+
+    static func slots() -> Int {
+        let n = (try? String(contentsOf: slotsFile, encoding: .utf8)).flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        return n.flatMap { allowedSlots.contains($0) ? $0 : nil } ?? 7
+    }
+
+    static func saveSlots(_ n: Int) throws {
+        guard allowedSlots.contains(n) else { return }
+        try String(n).write(to: slotsFile, atomically: true, encoding: .utf8)
+    }
 
     /// nil = never configured (phone shows everything and suggests editing).
     static func selected() -> [String]? {
