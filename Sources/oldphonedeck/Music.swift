@@ -96,6 +96,19 @@ final class Music {
         }
     }
 
+    /// Volume for the bar: the Mac's output, or null on outputs that have none (HDMI, digital).
+    func volume() -> [String: Any] {
+        ["system": SystemVolume.get() as Any? ?? NSNull()]
+    }
+
+    /// target: system; v: 0...100. Answers like volume(), with the value the Mac now has,
+    /// or nil when the target cannot be set.
+    func setVolume(_ target: String, _ v: Int) -> [String: Any]? {
+        guard target == "system" else { return nil }
+        SystemVolume.set(v)
+        return volume()
+    }
+
     func openPlayer() {
         let app = (snapshot()["app"] as? String) ?? "Spotify"
         _ = Music.osascript("tell application \"\(app)\" to activate")
@@ -105,5 +118,19 @@ final class Music {
         // Time out: the first call can sit behind macOS's "allow to control Spotify?" prompt.
         guard let data = Stats.run("/usr/bin/osascript", ["-e", source], timeout: 5) else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+}
+
+/// The Mac's output volume. Digital outputs (HDMI to a TV) have none: then `get` returns nil.
+enum SystemVolume {
+    // In-process: Standard Additions, no other app involved, so nothing can hang on a consent.
+    static func get() -> Int? {
+        guard let out = AppleScript.run("output volume of (get volume settings)", urgent: true)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return Int(out)
+    }
+
+    static func set(_ v: Int) {
+        _ = AppleScript.run("set volume output volume \(max(0, min(100, v)))", urgent: true)
     }
 }

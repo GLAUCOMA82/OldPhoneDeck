@@ -51,7 +51,7 @@
   /* ---- keys ---- */
   #keys { position: absolute; top: 76px; width: 316px; }
   .key { position: relative; float: left; width: 70px; margin: 0 12px 14px 0; text-align: center; }
-  .key:nth-child(4n) { margin-right: 0; }
+  .key.last { margin-right: 0; }
   .cap { width: 70px; height: 70px; border-radius: 18px; position: relative;
     background: linear-gradient(180deg, #303036 0%, #1b1b1f 100%);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.11), inset 0 -1px 0 rgba(0,0,0,.6), 0 3px 0 #0a0a0c, 0 8px 16px rgba(0,0,0,.55);
@@ -99,16 +99,31 @@
   #mArt.none { visibility: hidden; }
   #mNote { position: absolute; left: 8px; top: 8px; width: 36px; height: 36px; border-radius: 8px; text-align: center;
     line-height: 36px; font-size: 18px; color: #636366; background: linear-gradient(135deg, #3a3a3c, #232326); }
-  #mInfo { position: absolute; left: 54px; right: 116px; top: 9px; }
+  #mInfo { position: absolute; left: 54px; right: 150px; top: 9px; }
   #mTitle { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mArtist { font-size: 10.5px; color: #8e8e93; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #mProg { position: absolute; left: 54px; right: 116px; bottom: 8px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #mProg { position: absolute; left: 54px; right: 150px; bottom: 8px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
   #mProg i { display: block; height: 100%; width: 0; background: rgba(255,255,255,.75); border-radius: 2px; }
-  #mBtns { position: absolute; right: 8px; top: 9px; width: 104px; height: 34px; }
+  #mBtns { position: absolute; right: 8px; top: 9px; width: 138px; height: 34px; }
   .mb { float: left; width: 34px; height: 34px; border-radius: 17px; position: relative; }
   .mb svg { position: absolute; left: 9px; top: 9px; }
   .mb.play { background: #f5f5f7; margin: 0 1px; }
   .mb.down { -webkit-transform: scale(.9); transform: scale(.9); opacity: .7; }
+  .mb.vol.on { background: #3a3a3c; }
+  /* volume strip: replaces title + progress while open */
+  .mvol { position: absolute; left: 6px; right: 146px; top: 9px; height: 34px; display: none; }
+  .card.vol .mvol { display: block; }
+  #music.vol #mInfo, #music.vol #mProg, #music.vol #mArt, #music.vol #mNote { display: none; }
+  .vstep { position: absolute; top: 0; width: 30px; height: 34px; line-height: 32px; text-align: center; font-size: 20px; font-weight: 500; color: #f5f5f7; }
+  .vstep.down { opacity: .5; }
+  .vstep.vdn { left: 0; }
+  .vstep.vup { right: 0; }
+  .mvolbar { position: absolute; left: 32px; right: 32px; top: 6px; height: 22px; border-radius: 11px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .mvolbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #0a84ff; }
+  .mvolbar.sending i { background: #5e9fe0; }
+  .mvolbar.sending .mvollbl { opacity: .7; }
+  .mvollbl { position: absolute; left: 0; right: 0; top: 0; line-height: 22px; text-align: center; font-size: 10.5px; font-weight: 600; color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.6); }
 
   /* ---- Phone tab (modern iPhones) ---- */
   #pvBox { position: absolute; left: 16px; top: 42px; height: 264px; border-radius: 18px; overflow: hidden;
@@ -156,6 +171,10 @@
     background: #2c2c2e; color: #fff; padding: 0 10px; font-size: 13px; outline: none; -webkit-user-select: text; }
   #edit .btns { position: absolute; right: 10px; top: 10px; margin: 0; }
   #editCount { position: absolute; left: 12px; top: 44px; font-size: 10px; color: #8e8e93; }
+  #editSlots { position: absolute; right: 12px; top: 40px; font-size: 10px; color: #8e8e93; }
+  #editSlots span { display: inline-block; margin-left: 4px; padding: 0 8px; height: 18px; line-height: 18px; border-radius: 9px;
+    background: #2c2c2e; color: #c7c7cc; font-weight: 600; }
+  #editSlots span.on { background: #0a84ff; color: #fff; }
   #editList { position: absolute; left: 6px; right: 6px; top: 60px; bottom: 0; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
   .erow { height: 34px; position: relative; border-bottom: .5px solid rgba(255,255,255,.08); }
   .erow img { position: absolute; left: 30px; top: 4px; width: 26px; height: 26px; }
@@ -185,10 +204,12 @@
       <div id="mNote">♪</div><img id="mArt" class="none" alt="">
       <div id="mInfo"><div id="mTitle">Nothing playing</div><div id="mArtist">Spotify or Apple Music</div></div>
       <div id="mProg"><i id="mProgFill"></i></div>
+      <div id="mVol" class="mvol"><div class="vstep vdn" id="mVolDown">&minus;</div><div id="mVolBar" class="mvolbar"><i id="mVolFill"></i><div id="mVolLbl" class="mvollbl"></div></div><div class="vstep vup" id="mVolUp">+</div></div>
       <div id="mBtns">
         <div class="mb" id="mPrev"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3.5 3v10M12.5 3.6v8.8L5.8 8z" fill="#f5f5f7" stroke="#f5f5f7" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
         <div class="mb play" id="mPlay"></div>
         <div class="mb" id="mNext"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.5 3v10M3.5 3.6v8.8L10.2 8z" fill="#f5f5f7" stroke="#f5f5f7" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+        <div class="mb vol" id="mVolBtn"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 6h2.6L8 3v10L4.6 10H2z" fill="#f5f5f7"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.4 3.6a6.2 6.2 0 0 1 0 8.8" stroke="#f5f5f7" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg></div>
       </div>
     </div>
     <div id="net" class="card">
@@ -242,6 +263,7 @@
       <input id="filter" placeholder="Search apps" autocorrect="off" autocapitalize="none">
       <div class="btns"><div class="btn primary" id="editSave">Save</div><div class="btn" id="editCancel">Cancel</div></div>
       <div id="editCount"></div>
+      <div id="editSlots">Keys<span data-n="7">8</span><span data-n="9">10</span><span data-n="11">12</span></div>
       <div id="editList"></div>
     </div>
   </div>
@@ -259,7 +281,19 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var APP_SLOTS = 7;   // 8 keys: 7 apps + Ask Claude
+  var APP_SLOTS = 7;   // app keys; Take note is one more. Set from the Mac (/launcher "slots"): 7, 9 or 11
+  var KEY = 70, GAP = 12, ROWH = 104;   // key cap, gap between keys, row height (cap + label + margin)
+  function keyCols() { return (APP_SLOTS + 1) / 2; }
+  function keysW() { return keyCols() * (KEY + GAP) - GAP; }
+  // Places the key grid inside a box: shrinks it (never enlarges) to fit, centers it horizontally.
+  function placeKeys(left, top, avail) {
+    var s = Math.min(1, avail / keysW()), k = $('keys');
+    k.style.width = keysW() + 'px';
+    k.style.webkitTransformOrigin = k.style.transformOrigin = '0 0';
+    k.style.webkitTransform = k.style.transform = 'scale(' + s + ')';
+    px(k, { left: left + (avail - keysW() * s) / 2, top: top });
+    return Math.round(2 * ROWH * s);
+  }
   var modern = 'isSecureContext' in window;   // iOS 11.1+; the 4S is never "modern"
 
   // ---------- plumbing ----------
@@ -272,7 +306,11 @@
     var r = new XMLHttpRequest();
     r.open(method, path, true);
     if (body !== null && body !== undefined) r.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    r.onload = function () { if (cb) cb(r.status, r.responseText); };
+    r.onload = function () {
+      // The Mac refuses actions that type or run things when the page is on plain http (see Security.swift).
+      if (r.status === 403 && r.responseText.indexOf('HTTPS required') === 0) toast('Only from the https page');
+      if (cb) cb(r.status, r.responseText);
+    };
     r.onerror = function () { if (cb) cb(0, ''); };
     r.send(body === undefined ? null : body);
   }
@@ -327,12 +365,13 @@
     $('hint').style.display = 'none';
     if (portrait) {
       // Everything in one centered stack: keys, now playing, then the two widgets side by side.
-      var stackH = 208 + 8 + 58 + 12 + netH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
+      var kh = Math.round(2 * ROWH * Math.min(1, (W - 32) / keysW()));
+      var stackH = kh + 8 + 58 + 12 + netH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
       $('seg').style.top = '50px';
-      px($('keys'), { left: (W - 316) / 2, top: top });
-      px($('music'), { left: 16, top: top + 208 + 4, width: W - 32 });
+      placeKeys(16, top, W - 32);
+      px($('music'), { left: 16, top: top + kh + 4, width: W - 32 });
       cardW = (W - 42) / 2; batH = netH;
-      var cardTop = top + 208 + 4 + 58 + 12;
+      var cardTop = top + kh + 4 + 58 + 12;
       px(net, { left: 16, top: cardTop, width: cardW, height: netH });
       px(bat, { left: 16 + cardW + 10, top: cardTop, width: cardW });
       var pvH = Math.round((W - 32) * 3 / 4);
@@ -343,8 +382,7 @@
       cardW = W >= 640 ? 150 : 128;
       var right = W - 16, colLeft = right - cardW;
       var keysArea = colLeft - 16 - 16;                       // left column: keys on top, now playing below
-      var keysLeft = 16 + Math.max(0, (keysArea - 316) / 2);
-      px($('keys'), { left: keysLeft, top: 52 });
+      placeKeys(16, 52, keysArea);
       px($('music'), { left: 16, top: 252, width: Math.max(316, keysArea) });
       batH = 304 - (52 + netH + 10);
       px(net, { left: colLeft, top: 52, width: cardW, height: netH });
@@ -409,7 +447,8 @@
     xhr('GET', url('/launcher'), null, function (s, text) {
       if (s !== 200) return;
       launcher = JSON.parse(text);
-      renderKeys();
+      if (launcher.slots) APP_SLOTS = launcher.slots;
+      renderKeys(); layout();
     });
   }
   function key(cls, label, inner, onTap, onHold) {
@@ -435,12 +474,15 @@
     box.appendChild(key('claude', 'Take note', CLAUDE_SVG, openClaude, function () {
       xhr('POST', url('/claude'), 'text=', function () { toast('Claude is open on the Mac'); });
     }));
+    // Last key of each row has no right margin (the row count is 2, columns depend on APP_SLOTS).
+    for (var j = 0; j < box.children.length; j++) if ((j + 1) % keyCols() === 0) box.children[j].className += ' last';
   }
 
   // ---------- editor (hold any key) ----------
-  var draft = [];
+  var draft = [], draftSlots = APP_SLOTS;
   function openEditor() {
-    draft = (launcher.selected || []).slice(0, APP_SLOTS);
+    draftSlots = APP_SLOTS;
+    draft = (launcher.selected || []).slice(0, draftSlots);
     $('filter').value = '';
     sheet('edit', true);
     renderEditor();
@@ -448,12 +490,14 @@
   function renderEditor() {
     var box = $('editList'), q = $('filter').value.toLowerCase();
     box.innerHTML = '';
-    $('editCount').textContent = draft.length + ' of ' + APP_SLOTS + ' keys · ▲ moves an app earlier';
+    $('editCount').textContent = draft.length + ' of ' + draftSlots + ' apps · ▲ moves an app earlier';
+    var sl = $('editSlots').getElementsByTagName('span');
+    for (var i = 0; i < sl.length; i++) sl[i].className = +sl[i].getAttribute('data-n') === draftSlots ? 'on' : '';
     var chosen = draft.map(byPath).filter(function (a) { return a; });
     var rest = launcher.all.filter(function (a) { return draft.indexOf(a.path) < 0; });
     chosen.concat(rest).forEach(function (a) {
       if (q && a.name.toLowerCase().indexOf(q) < 0) return;
-      var idx = draft.indexOf(a.path), on = idx >= 0, full = !on && draft.length >= APP_SLOTS;
+      var idx = draft.indexOf(a.path), on = idx >= 0, full = !on && draft.length >= draftSlots;
       var row = document.createElement('div');
       row.className = 'erow' + (on ? ' on' : '') + (full ? ' full' : '');
       row.innerHTML = '<div class="ck">' + (on ? idx + 1 : '') + '</div><img><div class="nm"></div>' + (idx > 0 ? '<div class="up">▲</div>' : '');
@@ -464,7 +508,7 @@
       });
       row.addEventListener('click', function () {
         if (on) draft.splice(idx, 1);
-        else if (full) return toast('All 7 keys are used: remove one first');
+        else if (full) return toast('All ' + draftSlots + ' app keys are used: remove one first');
         else draft.push(a.path);
         renderEditor();
       });
@@ -472,12 +516,19 @@
     });
   }
   $('filter').addEventListener('input', renderEditor);
+  (function () {
+    var sl = $('editSlots').getElementsByTagName('span');
+    for (var i = 0; i < sl.length; i++) (function (el) {
+      tap(el, function () { draftSlots = +el.getAttribute('data-n'); draft = draft.slice(0, draftSlots); renderEditor(); });
+    })(sl[i]);
+  })();
   tap($('editCancel'), function () { sheet('edit', false); });
   tap($('editSave'), function () {
-    xhr('POST', url('/launcher'), 'paths=' + encodeURIComponent(draft.join('\n')), function (s) {
+    xhr('POST', url('/launcher'), 'slots=' + draftSlots + '&paths=' + encodeURIComponent(draft.join('\n')), function (s) {
       if (s !== 200) return toast('Save failed');
       launcher.selected = draft.slice();
-      renderKeys(); sheet('edit', false); toast('Keys saved');
+      APP_SLOTS = draftSlots;
+      renderKeys(); layout(); sheet('edit', false); toast('Keys saved');
     });
   });
 
@@ -663,6 +714,73 @@
   tap($('mPrev'), function () { media('previous'); });
   tap($('mInfo'), function () { media('open'); toast('Opening the player on the Mac'); });
   setPlayIcon(false);
+
+  // ---------- volume (the Mac's output) ----------
+  // The bar follows the finger at once (level); the Mac is sent only the latest value, one request at a
+  // time and at most every 90 ms; confirmed = the value the Mac answered. Until they match the bar shows "sending".
+  var vol = { target: '', level: 0, confirmed: 0, timer: null, kickT: null, busy: false, sentAt: 0, gen: 0 };
+  function volShow(on) {
+    clearTimeout(vol.timer);
+    $('music').className = $('music').className.replace(/ vol\b/g, '') + (on ? ' vol' : '');
+    $('mVolBtn').className = 'mb vol' + (on ? ' on' : '');
+    if (on) vol.timer = setTimeout(function () { if (vol.busy) return volShow(true); volShow(false); }, 5000);
+    else { vol.target = ''; vol.gen++; clearTimeout(vol.kickT); vol.kickT = null; }
+  }
+  function volDraw() {
+    $('mVolFill').style.width = vol.level + '%';
+    $('mVolLbl').textContent = vol.level + '%';
+    $('mVolBar').className = 'mvolbar' + (vol.busy || vol.level !== vol.confirmed ? ' sending' : '');
+  }
+  function volKick() {
+    if (vol.busy || vol.kickT || !vol.target || vol.level === vol.confirmed) return;
+    var wait = 90 - (new Date().getTime() - vol.sentAt);
+    if (wait > 0) { vol.kickT = setTimeout(function () { vol.kickT = null; volKick(); }, wait); return; }
+    var target = vol.target, sent = vol.level, gen = vol.gen;
+    vol.busy = true; vol.sentAt = new Date().getTime();
+    xhr('POST', url('/volume'), 'target=' + target + '&v=' + sent, function (s, text) {
+      vol.busy = false;
+      if (gen !== vol.gen) return;   // strip closed meanwhile
+      var got = null;
+      if (s === 200) { try { got = JSON.parse(text)[target]; } catch (e) {} }
+      if (typeof got === 'number') {
+        vol.confirmed = got;
+        if (vol.level === sent) vol.level = got;   // finger still there: show what the Mac has
+      } else {
+        toast('Volume not available');
+        vol.level = vol.confirmed;
+      }
+      volDraw();
+      volKick();   // the finger moved on while this one was out: send where it is now
+    });
+    volDraw();
+  }
+  function volSet(v) {
+    vol.level = Math.max(0, Math.min(100, Math.round(v)));
+    volDraw(); volShow(true);
+    volKick();
+  }
+  tap($('mVolBtn'), function () {
+    if (vol.target) return volShow(false);
+    xhr('GET', url('/volume'), null, function (s, text) {
+      if (s !== 200) return toast('Volume not available');
+      var d = JSON.parse(text);
+      if (d.system === null || d.system === undefined) return toast('This Mac has no volume control on its output');
+      vol.target = 'system'; vol.level = d.system;
+      vol.confirmed = vol.level; vol.gen++; volDraw(); volShow(true);
+    });
+  });
+  tap($('mVolDown'), function () { volSet(vol.level - 6); });
+  tap($('mVolUp'), function () { volSet(vol.level + 6); });
+  (function () {
+    var bar = $('mVolBar');
+    function at(e) {
+      var t = e.touches && e.touches.length ? e.touches[0] : e, r = bar.getBoundingClientRect();
+      if (r.width > 0 && vol.target) volSet((t.clientX - r.left) / r.width * 100);
+    }
+    bar.addEventListener('touchstart', function (e) { e.preventDefault(); at(e); });
+    bar.addEventListener('touchmove', function (e) { e.preventDefault(); at(e); });
+    bar.addEventListener('click', function (e) { at(e); });
+  })();
 
   // ---------- Phone tab: camera + mic to the Mac over a secure WebSocket ----------
   // Messages: 1 type byte + payload. 'H' token, 'V' JPEG frame, 'A' 16 kHz mono s16le PCM.
