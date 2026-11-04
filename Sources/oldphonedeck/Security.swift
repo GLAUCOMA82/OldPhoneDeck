@@ -6,7 +6,7 @@ import Network
 /// Two tokens, both in ~/.oldphonedeck:
 ///   token       full access. Refused on plain HTTP unless the request comes from this Mac (OBS on localhost).
 ///   token-http  for old iPhones that can only use plain HTTP: it opens only `Access.plainHTTPRoutes`
-///               (apps, playback, stats). Whoever sniffs it off the Wi-Fi gets that much and no more.
+///               (apps, playback, volume, stats). Whoever sniffs it off the Wi-Fi gets that much and no more.
 enum Access {
 
     // MARK: Source addresses
@@ -145,11 +145,11 @@ enum Access {
 
     /// The only routes the plain-HTTP token opens. Everything else (Take note and Claude, the phone camera,
     /// editing the launcher) needs the full token, which only travels over HTTPS or loopback.
-    /// /launch and /media stay here: the old iPhone needs them, and the worst a sniffed token can do with them
-    /// is open one of the apps in /Applications or skip a song.
+    /// /launch, /media and /volume stay here: the old iPhone needs them, and the worst a sniffed token can do
+    /// with them is open one of the apps in /Applications, skip a song or change the volume.
     static let plainHTTPRoutes: Set<String> = [
-        "GET /info", "GET /stats", "GET /artwork", "GET /icon", "GET /launcher",
-        "POST /launch", "POST /media", "POST /speedtest",
+        "GET /info", "GET /stats", "GET /artwork", "GET /icon", "GET /launcher", "GET /volume",
+        "POST /launch", "POST /media", "POST /volume", "POST /speedtest",
     ]
 
     static let httpsRequired = "HTTPS required: on this Mac this action only works from the https:// page (port +2)."

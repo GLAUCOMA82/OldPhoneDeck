@@ -120,7 +120,7 @@ final class HTTPConnection {
     }
 
     func respond(_ status: Int = 200, _ type: String = "text/plain; charset=utf-8", _ body: Data) {
-        let reason = [200: "OK", 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 413: "Payload Too Large",
+        let reason = [200: "OK", 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 409: "Conflict", 413: "Payload Too Large",
                       431: "Request Header Fields Too Large", 500: "Error"][status] ?? "OK"
         var head = "HTTP/1.1 \(status) \(reason)\r\nContent-Type: \(type)\r\nContent-Length: \(body.count)\r\n"
         head += "Cache-Control: no-store\r\nConnection: close\r\n\r\n"

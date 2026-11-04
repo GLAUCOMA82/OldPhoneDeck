@@ -133,6 +133,15 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         let cmd = p["cmd"] ?? ""
         if cmd == "open" { DispatchQueue.global().async { music.openPlayer() } } else { music.control(cmd) }
         conn.respond(text: "ok")
+    case ("GET", "/volume"):
+        DispatchQueue.global().async { let v = music.volume(); server.queue.async { conn.respondJSON(v) } }
+    case ("POST", "/volume"):
+        guard let v = p["v"].flatMap({ Int($0) }) else { return conn.respond(400, text: "no value") }
+        let target = p["target"] ?? "system"
+        DispatchQueue.global().async {
+            let now = music.setVolume(target, v)
+            server.queue.async { if let now { conn.respondJSON(now) } else { conn.respond(409, text: "not available") } }
+        }
     case ("GET", "/artwork"):
         guard let art = music.artwork() else { return conn.respond(404, text: "no artwork") }
         conn.respond(200, "image/jpeg", art)
@@ -208,7 +217,7 @@ Settings → General → About → Certificate Trust Settings, then open
 
     https://\(lanIP):\(opts.port + 2)/#k=\(k)
 
-Old iPhone that only does plain HTTP (apps, music, stats; nothing that types or runs commands):
+Old iPhone that only does plain HTTP (apps, music, volume, stats; nothing that types or runs commands):
 
     http://\(lanIP):\(opts.port)/#k=\(kh)
 
