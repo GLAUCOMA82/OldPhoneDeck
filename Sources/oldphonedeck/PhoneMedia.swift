@@ -39,7 +39,10 @@ final class PhoneMediaServer {
 
     func startWebSocket(port: UInt16, identity: sec_identity_t) throws {
         let ws = try NWListener(using: LocalTLS.parameters(identity, websocket: true), on: NWEndpoint.Port(rawValue: port)!)
-        ws.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
+        ws.newConnectionHandler = { [weak self] conn in
+            guard Access.admits(conn.endpoint) else { return conn.cancel() }
+            self?.accept(conn)
+        }
         ws.start(queue: queue)
         wsListener = ws
     }
@@ -56,7 +59,7 @@ final class PhoneMediaServer {
                 if let data, let type = data.first {
                     let payload = data.dropFirst()
                     if !authed {
-                        guard type == UInt8(ascii: "H"), String(data: payload, encoding: .utf8) == self.token else {
+                        guard type == UInt8(ascii: "H"), Access.equal(String(decoding: payload, as: UTF8.self), self.token) else {
                             print("Stream: rejected a bad token")
                             return conn.cancel()
                         }

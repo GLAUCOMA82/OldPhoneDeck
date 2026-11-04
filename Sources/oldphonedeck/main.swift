@@ -32,8 +32,8 @@ let configDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("
 
 // MARK: Access token (anyone on the Wi-Fi could otherwise open apps on your Mac)
 
-func loadToken() -> String {
-    let file = configDir.appendingPathComponent("token")
+func loadToken(_ name: String = "token") -> String {
+    let file = configDir.appendingPathComponent(name)
     if let t = try? String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
         return t
     }
@@ -63,6 +63,12 @@ func lanAddress() -> String {
 }
 
 let token = loadToken()
+let httpToken = loadToken("token-http")   // plain-HTTP token for old iPhones: opens only Access.plainHTTPRoutes
+let gate: HTTPGate = { method, path, query, length, secure, loopback in
+    Access.check(method: method, path: path, query: query, contentLength: length,
+                 secure: secure, loopback: loopback, token: token, httpToken: httpToken)
+}
+_ = Access.rules   // read config.json (and report it) at start, not on the first connection
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
@@ -82,6 +88,8 @@ let stats = Stats()
 stats.start()
 let music = Music()
 music.start()
+let activity = Activity()
+activity.start()
 
 // MARK: Routes
 
@@ -110,7 +118,7 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         let html = (try? Data(contentsOf: webRoot.appendingPathComponent("index.html"))) ?? Data()
         return conn.respond(200, "text/html; charset=utf-8", html)
     }
-    guard req.query["k"] == token else { return conn.respond(403, text: "bad token") }
+    // Token, HTTPS rule and body size were already checked by `gate` (Access.check), before the body was read.
     let p = req.params
 
     switch (req.method, req.path) {
@@ -120,6 +128,8 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         var snap = stats.snapshot()
         snap["music"] = music.snapshot()
         conn.respondJSON(snap)
+    case ("GET", "/activity"):
+        conn.respondJSON(activity.snapshot())
     case ("POST", "/speedtest"):
         stats.runSpeedTest()
         conn.respond(text: "ok")
@@ -127,16 +137,28 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         let cmd = p["cmd"] ?? ""
         if cmd == "open" { DispatchQueue.global().async { music.openPlayer() } } else { music.control(cmd) }
         conn.respond(text: "ok")
+    case ("GET", "/volume"):
+        DispatchQueue.global().async { let v = music.volume(); server.queue.async { conn.respondJSON(v) } }
+    case ("POST", "/volume"):
+        guard let v = p["v"].flatMap({ Int($0) }) else { return conn.respond(400, text: "no value") }
+        let target = p["target"] ?? "system"
+        DispatchQueue.global().async {
+            let now = music.setVolume(target, v)
+            server.queue.async { if let now { conn.respondJSON(now) } else { conn.respond(409, text: "not available") } }
+        }
     case ("GET", "/artwork"):
         guard let art = music.artwork() else { return conn.respond(404, text: "no artwork") }
         conn.respond(200, "image/jpeg", art)
     case ("GET", "/launcher"):
         let selected: Any = Launcher.selected() ?? NSNull()
-        conn.respondJSON(["selected": selected, "all": Apps.list()])
+        conn.respondJSON(["selected": selected, "all": Apps.list(), "slots": Launcher.slots()])
     case ("POST", "/launcher"):
         // Body: paths=<path>\n<path>\n… in display order.
         let paths = (p["paths"] ?? "").split(separator: "\n").map(String.init)
-        do { conn.respondJSON(["saved": try Launcher.save(paths)]) }
+        do {
+            if let n = Int(p["slots"] ?? "") { try Launcher.saveSlots(n) }
+            conn.respondJSON(["saved": try Launcher.save(paths), "slots": Launcher.slots()])
+        }
         catch { conn.respond(500, text: error.localizedDescription) }
     case ("GET", "/icon"):
         let path = p["path"] ?? ""
@@ -168,15 +190,15 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         conn.respond(404, text: "not found")
     }
 }
-server.start(routes)
+server.start(gate: gate, routes)
 
 // HTTPS + secure WebSocket for modern iPhones (Safari needs a secure page for camera, mic and speech).
 let lanIP = lanAddress()
 var httpsServer: HTTPServer?
 if let identity = LocalTLS.identity(for: lanIP) {
     do {
-        let s = try HTTPServer(port: opts.port + 2, parameters: LocalTLS.parameters(identity), queue: server.queue)
-        s.start(routes)
+        let s = try HTTPServer(port: opts.port + 2, parameters: LocalTLS.parameters(identity), secure: true, queue: server.queue)
+        s.start(gate: gate, routes)
         httpsServer = s
         try phoneMedia.startWebSocket(port: opts.port + 3, identity: identity)
     } catch { print("⚠️  HTTPS failed to start: \(error)") }
@@ -188,19 +210,24 @@ if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedVal
     print("⚠️  Grant Accessibility permission (System Settings → Privacy & Security → Accessibility) so Take note can press Return in Claude.")
 }
 
+// The links carry the tokens: print them only to a terminal, never into a log file.
+let tty = isatty(1) != 0
+let k = tty ? token : "<token>", kh = tty ? httpToken : "<token-http>"
 print("""
 
-OldPhoneDeck is running. On the phone (same Wi-Fi), open Safari and go to:
+OldPhoneDeck is running. On a modern iPhone (same Wi-Fi): once, open
+http://\(lanIP):\(opts.port)/oldphonedeck.mobileconfig, install it, enable it in
+Settings → General → About → Certificate Trust Settings, then open
 
-    http://\(lanIP):\(opts.port)/#k=\(token)
+    https://\(lanIP):\(opts.port + 2)/#k=\(k)
+
+Old iPhone that only does plain HTTP (apps, music, volume, stats; nothing that types or runs commands):
+
+    http://\(lanIP):\(opts.port)/#k=\(kh)
 
 Then tap Share → Add to Home Screen. Hold any key to choose your apps.
-
-Modern iPhone (voice, camera, mic): once, open http://\(lanIP):\(opts.port)/oldphonedeck.mobileconfig,
-install it, enable it in Settings → General → About → Certificate Trust Settings,
-then use https://\(lanIP):\(opts.port + 2)/#k=\(token)
-Camera for OBS (Media Source): http://localhost:\(opts.port)/camera.mjpg?k=\(token)
-Ctrl-C to quit.
+Camera for OBS (Media Source): http://localhost:\(opts.port)/camera.mjpg?k=\(k)
+\(tty ? "" : "Tokens are in ~/.oldphonedeck/token and ~/.oldphonedeck/token-http.\n")Ctrl-C to quit.
 
 """)
 

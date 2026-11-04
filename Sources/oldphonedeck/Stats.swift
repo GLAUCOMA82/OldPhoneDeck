@@ -32,7 +32,7 @@ final class Stats {
             s["running"] = testing
             return [
                 "net": ["rx": history.last?[0] ?? 0, "tx": history.last?[1] ?? 0,
-                        "history": history.map { $0[0] }],
+                        "history": history.map { $0[0] }, "historyUp": history.map { $0[1] }],
                 "speed": s,
                 "batteries": batteries,
                 "mac": Host.current().localizedName ?? "Mac",
