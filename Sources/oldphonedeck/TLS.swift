@@ -15,7 +15,7 @@ enum LocalTLS {
     static func identity(for ip: String) -> sec_identity_t? {
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            if !exists("ca.key") || !exists("ca.pem") { try makeCA() }
+            if !exists("ca.key") || !exists("ca.pem") { try makeCA(ip: ip) }
             let stamp = (try? String(contentsOf: dir.appendingPathComponent("server.ip"), encoding: .utf8)) ?? ""
             if !exists("server.p12") || stamp != ip { try makeServerCert(ip: ip) }
             return try loadIdentity()
@@ -46,9 +46,14 @@ enum LocalTLS {
         }
     }
 
-    private static func makeCA() throws {
+    private static func makeCA(ip: String) throws {
         // Self-signed via an explicit extfile: LibreSSL's "-extensions v3_ca" depends on the system openssl.cnf.
-        try "basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n"
+        // nameConstraints: the CA can only vouch for this LAN's /24, loopback and localhost. If ca.key ever
+        // leaked it still could not impersonate any real website on the phone that trusts it.
+        let parts = ip.split(separator: ".")
+        let lan = parts.count == 4 ? "permitted;IP:\(parts[0]).\(parts[1]).\(parts[2]).0/255.255.255.0," : ""
+        let constraints = "nameConstraints=critical,\(lan)permitted;IP:127.0.0.1/255.255.255.255,permitted;DNS:localhost\n"
+        try ("basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n" + constraints)
             .write(to: dir.appendingPathComponent("ca.ext"), atomically: true, encoding: .utf8)
         try openssl(["req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout", "ca.key", "-out", "ca.csr",
                      "-subj", "/CN=OldPhoneDeck CA"])
