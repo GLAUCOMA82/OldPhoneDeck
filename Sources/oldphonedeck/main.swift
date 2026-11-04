@@ -138,11 +138,14 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         conn.respond(200, "image/jpeg", art)
     case ("GET", "/launcher"):
         let selected: Any = Launcher.selected() ?? NSNull()
-        conn.respondJSON(["selected": selected, "all": Apps.list()])
+        conn.respondJSON(["selected": selected, "all": Apps.list(), "slots": Launcher.slots()])
     case ("POST", "/launcher"):
         // Body: paths=<path>\n<path>\n… in display order.
         let paths = (p["paths"] ?? "").split(separator: "\n").map(String.init)
-        do { conn.respondJSON(["saved": try Launcher.save(paths)]) }
+        do {
+            if let n = Int(p["slots"] ?? "") { try Launcher.saveSlots(n) }
+            conn.respondJSON(["saved": try Launcher.save(paths), "slots": Launcher.slots()])
+        }
         catch { conn.respond(500, text: error.localizedDescription) }
     case ("GET", "/icon"):
         let path = p["path"] ?? ""

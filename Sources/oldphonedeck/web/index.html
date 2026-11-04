@@ -51,7 +51,7 @@
   /* ---- keys ---- */
   #keys { position: absolute; top: 76px; width: 316px; }
   .key { position: relative; float: left; width: 70px; margin: 0 12px 14px 0; text-align: center; }
-  .key:nth-child(4n) { margin-right: 0; }
+  .key.last { margin-right: 0; }
   .cap { width: 70px; height: 70px; border-radius: 18px; position: relative;
     background: linear-gradient(180deg, #303036 0%, #1b1b1f 100%);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.11), inset 0 -1px 0 rgba(0,0,0,.6), 0 3px 0 #0a0a0c, 0 8px 16px rgba(0,0,0,.55);
@@ -156,6 +156,10 @@
     background: #2c2c2e; color: #fff; padding: 0 10px; font-size: 13px; outline: none; -webkit-user-select: text; }
   #edit .btns { position: absolute; right: 10px; top: 10px; margin: 0; }
   #editCount { position: absolute; left: 12px; top: 44px; font-size: 10px; color: #8e8e93; }
+  #editSlots { position: absolute; right: 12px; top: 40px; font-size: 10px; color: #8e8e93; }
+  #editSlots span { display: inline-block; margin-left: 4px; padding: 0 8px; height: 18px; line-height: 18px; border-radius: 9px;
+    background: #2c2c2e; color: #c7c7cc; font-weight: 600; }
+  #editSlots span.on { background: #0a84ff; color: #fff; }
   #editList { position: absolute; left: 6px; right: 6px; top: 60px; bottom: 0; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
   .erow { height: 34px; position: relative; border-bottom: .5px solid rgba(255,255,255,.08); }
   .erow img { position: absolute; left: 30px; top: 4px; width: 26px; height: 26px; }
@@ -242,6 +246,7 @@
       <input id="filter" placeholder="Search apps" autocorrect="off" autocapitalize="none">
       <div class="btns"><div class="btn primary" id="editSave">Save</div><div class="btn" id="editCancel">Cancel</div></div>
       <div id="editCount"></div>
+      <div id="editSlots">Keys<span data-n="7">8</span><span data-n="9">10</span><span data-n="11">12</span></div>
       <div id="editList"></div>
     </div>
   </div>
@@ -259,7 +264,19 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var APP_SLOTS = 7;   // 8 keys: 7 apps + Ask Claude
+  var APP_SLOTS = 7;   // app keys; Take note is one more. Set from the Mac (/launcher "slots"): 7, 9 or 11
+  var KEY = 70, GAP = 12, ROWH = 104;   // key cap, gap between keys, row height (cap + label + margin)
+  function keyCols() { return (APP_SLOTS + 1) / 2; }
+  function keysW() { return keyCols() * (KEY + GAP) - GAP; }
+  // Places the key grid inside a box: shrinks it (never enlarges) to fit, centers it horizontally.
+  function placeKeys(left, top, avail) {
+    var s = Math.min(1, avail / keysW()), k = $('keys');
+    k.style.width = keysW() + 'px';
+    k.style.webkitTransformOrigin = k.style.transformOrigin = '0 0';
+    k.style.webkitTransform = k.style.transform = 'scale(' + s + ')';
+    px(k, { left: left + (avail - keysW() * s) / 2, top: top });
+    return Math.round(2 * ROWH * s);
+  }
   var modern = 'isSecureContext' in window;   // iOS 11.1+; the 4S is never "modern"
 
   // ---------- plumbing ----------
@@ -331,12 +348,13 @@
     $('hint').style.display = 'none';
     if (portrait) {
       // Everything in one centered stack: keys, now playing, then the two widgets side by side.
-      var stackH = 208 + 8 + 58 + 12 + netH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
+      var kh = Math.round(2 * ROWH * Math.min(1, (W - 32) / keysW()));
+      var stackH = kh + 8 + 58 + 12 + netH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
       $('seg').style.top = '50px';
-      px($('keys'), { left: (W - 316) / 2, top: top });
-      px($('music'), { left: 16, top: top + 208 + 4, width: W - 32 });
+      placeKeys(16, top, W - 32);
+      px($('music'), { left: 16, top: top + kh + 4, width: W - 32 });
       cardW = (W - 42) / 2; batH = netH;
-      var cardTop = top + 208 + 4 + 58 + 12;
+      var cardTop = top + kh + 4 + 58 + 12;
       px(net, { left: 16, top: cardTop, width: cardW, height: netH });
       px(bat, { left: 16 + cardW + 10, top: cardTop, width: cardW });
       var pvH = Math.round((W - 32) * 3 / 4);
@@ -347,8 +365,7 @@
       cardW = W >= 640 ? 150 : 128;
       var right = W - 16, colLeft = right - cardW;
       var keysArea = colLeft - 16 - 16;                       // left column: keys on top, now playing below
-      var keysLeft = 16 + Math.max(0, (keysArea - 316) / 2);
-      px($('keys'), { left: keysLeft, top: 52 });
+      placeKeys(16, 52, keysArea);
       px($('music'), { left: 16, top: 252, width: Math.max(316, keysArea) });
       batH = 304 - (52 + netH + 10);
       px(net, { left: colLeft, top: 52, width: cardW, height: netH });
@@ -413,7 +430,8 @@
     xhr('GET', url('/launcher'), null, function (s, text) {
       if (s !== 200) return;
       launcher = JSON.parse(text);
-      renderKeys();
+      if (launcher.slots) APP_SLOTS = launcher.slots;
+      renderKeys(); layout();
     });
   }
   function key(cls, label, inner, onTap, onHold) {
@@ -439,12 +457,15 @@
     box.appendChild(key('claude', 'Take note', CLAUDE_SVG, openClaude, function () {
       xhr('POST', url('/claude'), 'text=', function () { toast('Claude is open on the Mac'); });
     }));
+    // Last key of each row has no right margin (the row count is 2, columns depend on APP_SLOTS).
+    for (var j = 0; j < box.children.length; j++) if ((j + 1) % keyCols() === 0) box.children[j].className += ' last';
   }
 
   // ---------- editor (hold any key) ----------
-  var draft = [];
+  var draft = [], draftSlots = APP_SLOTS;
   function openEditor() {
-    draft = (launcher.selected || []).slice(0, APP_SLOTS);
+    draftSlots = APP_SLOTS;
+    draft = (launcher.selected || []).slice(0, draftSlots);
     $('filter').value = '';
     sheet('edit', true);
     renderEditor();
@@ -452,12 +473,14 @@
   function renderEditor() {
     var box = $('editList'), q = $('filter').value.toLowerCase();
     box.innerHTML = '';
-    $('editCount').textContent = draft.length + ' of ' + APP_SLOTS + ' keys · ▲ moves an app earlier';
+    $('editCount').textContent = draft.length + ' of ' + draftSlots + ' apps · ▲ moves an app earlier';
+    var sl = $('editSlots').getElementsByTagName('span');
+    for (var i = 0; i < sl.length; i++) sl[i].className = +sl[i].getAttribute('data-n') === draftSlots ? 'on' : '';
     var chosen = draft.map(byPath).filter(function (a) { return a; });
     var rest = launcher.all.filter(function (a) { return draft.indexOf(a.path) < 0; });
     chosen.concat(rest).forEach(function (a) {
       if (q && a.name.toLowerCase().indexOf(q) < 0) return;
-      var idx = draft.indexOf(a.path), on = idx >= 0, full = !on && draft.length >= APP_SLOTS;
+      var idx = draft.indexOf(a.path), on = idx >= 0, full = !on && draft.length >= draftSlots;
       var row = document.createElement('div');
       row.className = 'erow' + (on ? ' on' : '') + (full ? ' full' : '');
       row.innerHTML = '<div class="ck">' + (on ? idx + 1 : '') + '</div><img><div class="nm"></div>' + (idx > 0 ? '<div class="up">▲</div>' : '');
@@ -468,7 +491,7 @@
       });
       row.addEventListener('click', function () {
         if (on) draft.splice(idx, 1);
-        else if (full) return toast('All 7 keys are used: remove one first');
+        else if (full) return toast('All ' + draftSlots + ' app keys are used: remove one first');
         else draft.push(a.path);
         renderEditor();
       });
@@ -476,12 +499,19 @@
     });
   }
   $('filter').addEventListener('input', renderEditor);
+  (function () {
+    var sl = $('editSlots').getElementsByTagName('span');
+    for (var i = 0; i < sl.length; i++) (function (el) {
+      tap(el, function () { draftSlots = +el.getAttribute('data-n'); draft = draft.slice(0, draftSlots); renderEditor(); });
+    })(sl[i]);
+  })();
   tap($('editCancel'), function () { sheet('edit', false); });
   tap($('editSave'), function () {
-    xhr('POST', url('/launcher'), 'paths=' + encodeURIComponent(draft.join('\n')), function (s) {
+    xhr('POST', url('/launcher'), 'slots=' + draftSlots + '&paths=' + encodeURIComponent(draft.join('\n')), function (s) {
       if (s !== 200) return toast('Save failed');
       launcher.selected = draft.slice();
-      renderKeys(); sheet('edit', false); toast('Keys saved');
+      APP_SLOTS = draftSlots;
+      renderKeys(); layout(); sheet('edit', false); toast('Keys saved');
     });
   });
 
