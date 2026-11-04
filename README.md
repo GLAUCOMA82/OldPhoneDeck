@@ -81,7 +81,8 @@ iPhone (Safari)                     Mac: oldphonedeck (Swift, no dependencies)
 | Take note | Opens `claude://claude.ai/new?q=…` (the same link the Claude app's own macOS Service uses), then presses Return |
 | Now playing | AppleScript to Spotify / Music, with a timeout so a pending permission prompt can't freeze it |
 | Volume | The speaker button in the player opens a slider for the Mac's output volume, set through AppleScript run in-process (`NSAppleScript`, one thread, compiled scripts cached) |
-| Internet | `/usr/bin/networkQuality -c` + `en*` interface byte counters |
+| Internet | `/usr/bin/networkQuality -c` (tap the card) + `en*` interface byte counters: live download and upload, each with its own graph and scale |
+| Activity | `host_statistics` for CPU, the GPU's `PerformanceStatistics` in IOKit, `host_statistics64` and `sysctl` for memory, pressure and swap, `ps` for the busiest apps (read only while the page asks); `GET /activity` |
 | Batteries | IOKit power sources, `ioreg -r -k BatteryPercent`, `system_profiler SPBluetoothDataType` |
 | HTTPS | Local CA and server certificate generated with the built-in `openssl`, served as an iOS profile |
 
@@ -104,7 +105,7 @@ Settings live in `~/.oldphonedeck/`: `token` (the access code), `token-http` (th
   {"allow": ["192.168.1.0/24", "fe80::/10"]}
   ```
 
-- **Two tokens.** `~/.oldphonedeck/token` opens everything, but only over HTTPS or from this Mac itself (OBS on `localhost`): on plain HTTP from the network it is refused, so it never has to cross the Wi-Fi in clear. `~/.oldphonedeck/token-http` is for old iPhones that only do plain HTTP and opens only apps, playback, volume and stats (`Access.plainHTTPRoutes` in `Security.swift`). Take note, the camera and editing the keys answer `403 HTTPS required` with it.
+- **Two tokens.** `~/.oldphonedeck/token` opens everything, but only over HTTPS or from this Mac itself (OBS on `localhost`): on plain HTTP from the network it is refused, so it never has to cross the Wi-Fi in clear. `~/.oldphonedeck/token-http` is for old iPhones that only do plain HTTP and opens only apps, playback, volume, stats and activity (`Access.plainHTTPRoutes` in `Security.swift`). Take note, the camera and editing the keys answer `403 HTTPS required` with it.
 - Tokens are compared in constant time and checked from the request head, before the body is read; bodies are capped at 64 KB, larger ones get `413`. The startup links with the tokens are printed only to a terminal, never into a log file.
 - The local CA is name-constrained to the Mac's LAN /24, 127.0.0.1 and `localhost`, so even a leaked `ca.key` could not impersonate a real website on a phone that trusts it (this applies to CAs created from now on: delete `~/.oldphonedeck/tls` and reinstall the profile to get one).
 - Anyone with the full link can open apps and send text to Claude on your Mac, so **treat it like a password** and **never port-forward it to the internet**.

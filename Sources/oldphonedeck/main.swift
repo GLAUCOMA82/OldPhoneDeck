@@ -88,6 +88,8 @@ let stats = Stats()
 stats.start()
 let music = Music()
 music.start()
+let activity = Activity()
+activity.start()
 
 // MARK: Routes
 
@@ -126,6 +128,8 @@ let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
         var snap = stats.snapshot()
         snap["music"] = music.snapshot()
         conn.respondJSON(snap)
+    case ("GET", "/activity"):
+        conn.respondJSON(activity.snapshot())
     case ("POST", "/speedtest"):
         stats.runSpeedTest()
         conn.respond(text: "ok")

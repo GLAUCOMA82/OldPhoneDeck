@@ -6,7 +6,7 @@ import Network
 /// Two tokens, both in ~/.oldphonedeck:
 ///   token       full access. Refused on plain HTTP unless the request comes from this Mac (OBS on localhost).
 ///   token-http  for old iPhones that can only use plain HTTP: it opens only `Access.plainHTTPRoutes`
-///               (apps, playback, volume, stats). Whoever sniffs it off the Wi-Fi gets that much and no more.
+///               (apps, playback, volume, stats and activity). Whoever sniffs it off the Wi-Fi gets that much and no more.
 enum Access {
 
     // MARK: Source addresses
@@ -148,7 +148,7 @@ enum Access {
     /// /launch, /media and /volume stay here: the old iPhone needs them, and the worst a sniffed token can do
     /// with them is open one of the apps in /Applications, skip a song or change the volume.
     static let plainHTTPRoutes: Set<String> = [
-        "GET /info", "GET /stats", "GET /artwork", "GET /icon", "GET /launcher", "GET /volume",
+        "GET /info", "GET /stats", "GET /artwork", "GET /icon", "GET /launcher", "GET /volume", "GET /activity",
         "POST /launch", "POST /media", "POST /volume", "POST /speedtest",
     ]
 

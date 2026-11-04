@@ -78,7 +78,14 @@
   .sub { font-size: 10.5px; color: #c7c7cc; margin-top: 3px; white-space: nowrap; }
   .arrow { color: #64d2ff; font-weight: 700; }
   .arrow.up { color: #30d158; }
-  #spark { display: block; margin-top: 6px; }
+  /* Deck Internet card: download and upload, each with its own graph, scale and live value */
+  #net h3 { margin-bottom: 4px; white-space: nowrap; overflow: hidden; }
+  #netTest { float: right; font-weight: 500; letter-spacing: 0; text-transform: none; color: #8e8e93; }
+  .nl { position: relative; height: 15px; line-height: 15px; font-size: 9.5px; color: #8e8e93; white-space: nowrap; overflow: hidden; }
+  .nl b { font-size: 12.5px; font-weight: 700; color: #f5f5f7; letter-spacing: -.2px; margin-right: 2px;
+    -webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum"; }
+  .nl .nmax { position: absolute; right: 0; top: 0; color: #636366; }
+  #spark, #sparkUp { display: block; margin: 1px 0 3px; }
   .foot { position: absolute; left: 12px; right: 12px; bottom: 9px; font-size: 9px; color: #636366; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Batteries: compact chips, icon + percentage */
   .chip { float: left; width: 50%; height: 30px; position: relative; box-sizing: border-box; padding-right: 6px; }
@@ -92,6 +99,38 @@
   .chip b.low { color: #ff453a; }
   .chip b.chg { color: #30d158; }
   .empty-note { font-size: 10px; color: #636366; }
+  /* Activity card in the Deck: CPU and GPU over the last 10 minutes, memory and its pressure, swap, busiest apps */
+  .cx h3 { position: absolute; left: 12px; right: 12px; top: 9px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cx .cbody { position: absolute; left: 12px; right: 12px; top: 30px; bottom: 10px; }
+  .ag, .amem, .atop, .anote { position: absolute; }
+  .al { height: 16px; line-height: 14px; font-size: 10px; font-weight: 600; letter-spacing: .3px; color: #8e8e93; white-space: nowrap; overflow: hidden; }
+  .al b { font-size: 13px; font-weight: 700; letter-spacing: -.2px; color: #f5f5f7; margin-left: 4px;
+    -webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum"; }
+  .al .asw { margin-left: 8px; font-weight: 500; letter-spacing: 0; }
+  .ag canvas { position: absolute; display: block; }
+  .abar { position: absolute; left: 0; right: 0; top: 18px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .abar i { display: block; height: 100%; width: 0; border-radius: 4px; background: #30d158; }
+  .abar i.warn { background: #ffd60a; }
+  .abar i.critical { background: #ff453a; }
+  .atop { font-size: 10.5px; line-height: 14px; color: #aeaeb2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .atop b { color: #f5f5f7; font-weight: 600; }
+  /* One 34pt row (little room): CPU and GPU with a small graph each, then memory with its bar. */
+  .arow .ag .al { height: 34px; line-height: 34px; }
+  .arow .amem .al { height: 22px; line-height: 24px; }
+  .arow .abar { top: 23px; height: 5px; }
+  .arow .asw { display: none; }
+  .anote { left: 0; right: 0; top: 0; font-size: 11px; line-height: 15px; color: #8e8e93; display: none; background: transparent; }
+  .acard.off .ag, .acard.off .amem, .acard.off .atop { visibility: hidden; }
+  .acard.off .anote { display: block; }
+  /* Deck on a phone in landscape: one 34pt strip, CPU and memory only. */
+  .astrip h3, .astrip canvas, .astrip .abar, .astrip .asw, .astrip .atop { display: none; }
+  .astrip .cbody { top: 0; bottom: 0; }
+  .astrip .anote { line-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .astrip .al { height: 34px; line-height: 34px; font-size: 9px; letter-spacing: 0; }
+  .astrip .amem .al { text-align: right; }
+  .astrip .al b { font-size: 12px; margin-left: 2px; }
+  .astrip .al b.warn { color: #ffd60a; }
+  .astrip .al b.critical { color: #ff453a; }
   /* ---- now playing ---- */
   #music { position: absolute; height: 52px; padding: 0; }
   #mArt { position: absolute; left: 8px; top: 8px; width: 36px; height: 36px; border-radius: 8px;
@@ -213,11 +252,13 @@
       </div>
     </div>
     <div id="net" class="card">
-      <h3 id="netTitle">Internet</h3>
-      <div class="big"><span class="arrow">↓</span> <span id="down">–</span><small>Mbps</small></div>
-      <div class="sub"><span class="arrow up">↑</span> <span id="up">–</span> Mbps · <span id="ping">–</span> ms</div>
+      <h3><span id="netTest"></span><span id="netTitle">Internet</span></h3>
+      <div class="nl"><span class="arrow">↓</span> <b id="down">–</b>Mbps<span class="nmax" id="downMax"></span></div>
       <canvas id="spark" width="208" height="36"></canvas>
+      <div class="nl"><span class="arrow up">↑</span> <b id="up">–</b>Mbps<span class="nmax" id="upMax"></span></div>
+      <canvas id="sparkUp" width="208" height="36"></canvas>
     </div>
+    <div id="act" class="card cx"><h3>Activity</h3><div class="cbody"></div></div>
     <div id="bat" class="card"><h3>Batteries</h3><div id="batList"></div></div>
   </div>
 
@@ -360,13 +401,14 @@
   }
   function layout() {
     // Compact widgets: Internet (number + small graph) and Batteries (icon + %), stacked in one narrow column.
-    var net = $('net'), bat = $('bat'), cardW, netH = 104, batH;
+    var net = $('net'), bat = $('bat'), act = $('act'), cardW, netH = 104, batH, actH, actW = 0, actMode;
     net.className = bat.className = 'card';
     $('hint').style.display = 'none';
     if (portrait) {
       // Everything in one centered stack: keys, now playing, then the two widgets side by side.
       var kh = Math.round(2 * ROWH * Math.min(1, (W - 32) / keysW()));
-      var stackH = kh + 8 + 58 + 12 + netH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
+      actH = 140; actW = W - 32; actMode = 'wide';   // under the two widgets, full width: graphs side by side, memory, busiest apps
+      var stackH = kh + 8 + 58 + 12 + netH + 10 + actH, top = Math.max(90, Math.round((H - stackH) / 2) + 10);
       $('seg').style.top = '50px';
       placeKeys(16, top, W - 32);
       px($('music'), { left: 16, top: top + kh + 4, width: W - 32 });
@@ -374,6 +416,7 @@
       var cardTop = top + kh + 4 + 58 + 12;
       px(net, { left: 16, top: cardTop, width: cardW, height: netH });
       px(bat, { left: 16 + cardW + 10, top: cardTop, width: cardW });
+      px(act, { left: 16, top: cardTop + netH + 10, width: W - 32, height: actH });
       var pvH = Math.round((W - 32) * 3 / 4);
       px($('pvBox'), { left: 16, top: 72, width: W - 32, height: pvH });
       px($('pCtl'), { left: 16, top: 72 + pvH + 14, width: W - 32 });
@@ -384,18 +427,23 @@
       var keysArea = colLeft - 16 - 16;                       // left column: keys on top, now playing below
       placeKeys(16, 52, keysArea);
       px($('music'), { left: 16, top: 252, width: Math.max(316, keysArea) });
-      batH = 304 - (52 + netH + 10);
+      // The column is 252pt tall: Internet's two graphs, a 34pt Activity strip (CPU and memory: is the Mac
+      // struggling?) and two rows of batteries. GPU, swap and busiest apps show when the phone is upright.
+      netH = 102; actH = 34; actMode = 'strip';
+      batH = 304 - (52 + netH + 8 + actH + 8);
       px(net, { left: colLeft, top: 52, width: cardW, height: netH });
-      px(bat, { left: colLeft, top: 52 + netH + 10, width: cardW });
+      px(act, { left: colLeft, top: 52 + netH + 8, width: cardW, height: actH });
+      px(bat, { left: colLeft, top: 52 + netH + 8 + actH + 8, width: cardW });
       var ctlW = W >= 640 ? 180 : 150;
       px($('pvBox'), { left: 16, top: 42, width: W - 32 - ctlW - 12, height: 264 });
       px($('pCtl'), { left: W - 16 - ctlW, top: 42, width: ctlW });
     }
     batteryRows = Math.max(2, Math.floor((batH - 40) / 30)) * 2;   // max chips that fit, two per row
-    var spark = $('spark'), sw = cardW - 24, sh = 18;
-    spark.width = sw * 2; spark.height = sh * 2;
-    px(spark, { width: sw, height: sh });
-    drawSpark(lastHistory); renderBatteries(lastBatteries);
+    var sw = cardW - 24, sh = Math.floor((netH - 69) / 2), sp = [$('spark'), $('sparkUp')];
+    for (var si = 0; si < 2; si++) { sp[si].width = sw * 2; sp[si].height = sh * 2; px(sp[si], { width: sw, height: sh }); }
+    drawSpark(lastHistory, lastHistoryUp);
+    deckActSize(actMode, actW || cardW, actH);
+    renderBatteries(lastBatteries);
   }
   window.addEventListener('resize', fit);
   window.addEventListener('orientationchange', function () { setTimeout(fit, 300); });
@@ -585,22 +633,44 @@
     var s = Math.round((Date.now() - ms) / 1000);
     return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
   }
-  var lastHistory = [];
-  function drawSpark(hist) {
-    lastHistory = hist || [];
-    var c = $('spark'), g = c.getContext('2d'), w = c.width, h = c.height;
+  var lastHistory = [], lastHistoryUp = [];
+  // Top of a graph's scale: the next 1, 2 or 5 step above the last minute's peak, written at the right.
+  function niceMax(h) {
+    var m = 0.1, i, p, k, steps = [1, 2, 5, 10];
+    for (i = 0; i < h.length; i++) if (h[i] > m) m = h[i];
+    p = Math.pow(10, Math.floor(Math.log(m) / Math.LN10));
+    for (k = 0; k < 3; k++) if (steps[k] * p >= m) break;
+    return steps[k] * p;
+  }
+  function drawSpark(hist, histUp) {
+    lastHistory = hist || []; lastHistoryUp = histUp || [];
+    var md = niceMax(lastHistory), mu = niceMax(lastHistoryUp);
+    $('downMax').textContent = 'scale ' + (md >= 1 ? Math.round(md) : md.toFixed(1));
+    $('upMax').textContent = 'scale ' + (mu >= 1 ? Math.round(mu) : mu.toFixed(1));
+    drawLine($('spark'), lastHistory, { rgb: '100,210,255', max: md, slots: 60, lw: 2, grid: 0.5 });
+    drawLine($('sparkUp'), lastHistoryUp, { rgb: '48,209,88', max: mu, slots: 60, lw: 2, grid: 0.5 });
+  }
+  // Line + fading fill on a canvas sized in device pixels. o: rgb ('r,g,b'), max (fixed top, else the
+  // data's), slots (fixed number of samples across the width: newest at the right edge), lw, grid (fraction).
+  function drawLine(c, hist, o) {
+    var g = c.getContext('2d'), w = c.width, h = c.height, n = hist.length, i, max = o.max || 1;
     g.clearRect(0, 0, w, h);
-    if (lastHistory.length < 2) return;
-    var max = 1; lastHistory.forEach(function (v) { if (v > max) max = v; });
+    if (o.grid) {
+      g.fillStyle = 'rgba(255,255,255,.08)';
+      for (i = 1; i * o.grid < 1; i++) g.fillRect(0, Math.round(h * i * o.grid), w, 1);
+    }
+    if (n < 2) return;
+    if (!o.max) hist.forEach(function (v) { if (v > max) max = v; });
+    var step = w / ((o.slots || n) - 1), x0 = w - (n - 1) * step;
     g.beginPath();
-    lastHistory.forEach(function (v, i) {
-      var x = i * w / (lastHistory.length - 1), y = h - 3 - (v / max) * (h - 6);
+    for (i = 0; i < n; i++) {
+      var x = x0 + i * step, y = h - 3 - Math.min(1, hist[i] / max) * (h - 6);
       if (i) g.lineTo(x, y); else g.moveTo(x, y);
-    });
-    g.strokeStyle = '#64d2ff'; g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke();
-    g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+    }
+    g.strokeStyle = 'rgb(' + o.rgb + ')'; g.lineWidth = o.lw || 2.5; g.lineJoin = 'round'; g.stroke();
+    g.lineTo(w, h); g.lineTo(x0, h); g.closePath();
     var grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, 'rgba(100,210,255,.35)'); grad.addColorStop(1, 'rgba(100,210,255,0)');
+    grad.addColorStop(0, 'rgba(' + o.rgb + ',.35)'); grad.addColorStop(1, 'rgba(' + o.rgb + ',0)');
     g.fillStyle = grad; g.fill();
   }
   // Small line icons per device kind, drawn like SF Symbols.
@@ -666,12 +736,18 @@
       var d = JSON.parse(text);
       $('macName').textContent = d.mac.replace(/^\S+['’]s?\s+/, '');
       var sp = d.speed || {};
-      $('down').textContent = sp.down !== undefined ? fmt(sp.down) : '–';
-      $('up').textContent = sp.up !== undefined ? fmt(sp.up) : '–';
-      $('ping').textContent = sp.ping !== undefined ? Math.round(sp.ping) : '–';
-      $('net').title = sp.at ? 'Tested ' + ago(sp.at) : '';
+      // Live throughput next to each graph; the last speed test (tap the card) in the title row.
+      $('down').textContent = fmt(d.net.rx || 0);
+      $('up').textContent = fmt(d.net.tx || 0);
+      var nt = $('netTest'), test = sp.down !== undefined ? '↓' + fmt(sp.down) + ' ↑' + fmt(sp.up || 0) : '';
       $('netTitle').textContent = sp.running ? 'Testing…' : 'Internet';
-      drawSpark(d.net.history);
+      nt.textContent = test + (test && sp.ping !== undefined ? ' · ' + Math.round(sp.ping) + ' ms' : '');
+      function full() { return nt.offsetWidth + $('netTitle').offsetWidth + 10 > nt.parentNode.clientWidth; }
+      if (full()) nt.textContent = test;
+      if (full()) nt.textContent = '';   // 4S: the speed test stays in the card's tooltip
+      $('net').title = sp.at ? 'Tested ' + ago(sp.at) + ': ' + test + (sp.ping !== undefined ? ', ping ' + Math.round(sp.ping) + ' ms' : '') : '';
+      drawSpark(d.net.history, d.net.historyUp);
+      deckActRefresh();
       renderBatteries(d.batteries);
       renderMusic(d.music);
     });
@@ -680,6 +756,128 @@
   tap($('net'), function () {
     xhr('POST', url('/speedtest'), '', function () { $('netTitle').textContent = 'Testing…'; toast('Running a speed test (~20 s)'); });
   });
+
+  // ---------- Activity card: CPU and GPU over the last 10 minutes, memory and its pressure, swap, busiest apps ----------
+  // GET /activity, polled with /stats. mode: 'wide' (phone upright: graphs side by side, memory, busiest apps)
+  // or 'strip' (phone in landscape: one 34pt row with CPU and memory in use).
+  function gb(b) { return (b / 1073741824).toFixed(b >= 10737418240 ? 0 : 1); }
+  var dact = null;
+  function deckAct() {
+    if (dact) return dact;
+    var card = $('act'), body = card.lastChild;
+    card.className += ' acard';
+    body.innerHTML = '<div class="ag"><div class="al">CPU<b></b></div><canvas></canvas></div>' +
+      '<div class="ag"><div class="al">GPU<b></b></div><canvas></canvas></div>' +
+      '<div class="amem"><div class="al"><span>MEMORY</span><b></b><span class="asw"></span></div><div class="abar"><i></i></div></div>' +
+      '<div class="atop"></div><div class="anote">Loading\u2026</div>';
+    var q = function (sel) { return body.querySelectorAll(sel); };
+    dact = { mode: '', busy: false, waitUntil: 0, st: { card: card, g: q('.ag'), lbl: q('.ag b'), cv: q('.ag canvas'),
+      mem: body.querySelector('.amem'), memB: body.querySelector('.amem b'), sw: body.querySelector('.asw'),
+      bar: body.querySelector('.abar i'), memK: body.querySelector('.amem span'), top: body.querySelector('.atop'),
+      note: body.querySelector('.anote'), d: null, compact: false } };
+    return dact;
+  }
+  function deckActSize(mode, w, h) {
+    var a = deckAct(), st = a.st, r = window.devicePixelRatio || 2, i, gw;
+    a.mode = mode;
+    st.card.className = st.card.className.replace(/ (astrip|arow)\b/g, '') + (mode === 'strip' ? ' astrip' : '');
+    for (i = 0; i < 2; i++) { st.g[i].style.display = ''; st.cv[i].style.display = ''; }
+    st.top.style.display = st.sw.style.display = '';
+    if (mode === 'strip') {
+      // Two cells: CPU and memory in use, the memory value colored by pressure.
+      var bw = w - 24;
+      st.memK.textContent = 'MEM'; st.compact = true;
+      px(st.g[0], { left: 0, top: 0, width: Math.round(bw / 2), height: 34 });
+      px(st.mem, { left: Math.round(bw / 2), top: 0, width: bw - Math.round(bw / 2), height: 34 });
+      st.g[1].style.display = 'none';
+      return deckActDraw();
+    }
+    function canvas(cv, x, y, wd, ht) {
+      cv.width = Math.round(wd * r); cv.height = Math.round(ht * r);
+      px(cv, { left: x, top: y, width: wd, height: ht });
+    }
+    // One row when the card is too short for graphs above a memory bar.
+    var row = h - 40 < 74;
+    st.memK.textContent = row ? 'MEM' : 'MEMORY';
+    st.card.className = st.card.className.replace(/ arow\b/g, '') + (row ? ' arow' : '');
+    st.compact = row;
+    if (row) {
+      // Three equal cells in one row: CPU + graph, GPU + graph, memory + bar.
+      gw = (w - 24 - 20) / 3;
+      for (i = 0; i < 2; i++) {
+        px(st.g[i], { left: i * (gw + 10), top: 0, width: gw, height: 34 });
+        canvas(st.cv[i], 64, 7, Math.max(16, gw - 64), 20);
+      }
+      px(st.mem, { left: 2 * (gw + 10), top: 0, width: gw, height: 34 });
+      st.top.style.display = 'none';
+      return deckActDraw();
+    }
+    var bw2 = w - 24, bh = h - 40, MEM = 30, TOP = bh >= 100 ? 18 : 0, gap = 8;
+    var gh = Math.max(30, bh - MEM - TOP - gap), side = bw2 >= 260;
+    st.top.style.display = TOP ? '' : 'none';
+    // Two graphs side by side when there is width, else one above the other.
+    for (i = 0; i < 2; i++) {
+      gw = side ? (bw2 - 14) / 2 : bw2;
+      var hh = side ? gh : gh / 2 - 4;
+      px(st.g[i], { left: side ? i * (gw + 14) : 0, top: side ? 0 : i * (gh / 2), width: gw, height: hh });
+      canvas(st.cv[i], 0, 17, gw, Math.max(12, hh - 17));
+    }
+    px(st.mem, { left: 0, top: gh + gap, width: bw2, height: MEM });
+    px(st.top, { left: 0, top: gh + gap + MEM, width: bw2 });
+    deckActDraw();
+  }
+  function activityDraw(st) {
+    var d = st.d;
+    if (!d) return;
+    var m = d.mem || {}, hasGpu = d.gpu !== undefined, slots = Math.round(600 / (d.interval || 2));
+    var pres = m.pressure || 'normal', memTxt = m.used ? gb(m.used) + ' / ' + gb(m.total) + ' GB' : '';
+    var swapTxt = m.swapUsed ? 'swap ' + gb(m.swapUsed) + ' GB' : 'no swap';
+    st.lbl[0].textContent = d.cpu + '%';
+    st.lbl[1].textContent = hasGpu ? d.gpu + '%' : 'n/a';
+    drawLine(st.cv[0], d.cpuHistory || [], { rgb: '100,210,255', max: 100, slots: slots, lw: 2, grid: 0.5 });
+    drawLine(st.cv[1], d.gpuHistory || [], { rgb: '191,90,242', max: 100, slots: slots, lw: 2, grid: 0.5 });
+    st.memB.textContent = st.compact && m.used ? gb(m.used) + '/' + gb(m.total) + ' GB' : memTxt;
+    st.sw.textContent = (pres === 'normal' ? '' : 'pressure ' + (pres === 'warn' ? 'high' : 'critical') + ' \u00b7 ') + swapTxt;
+    st.bar.style.width = m.total ? Math.min(100, m.used / m.total * 100) + '%' : '0';
+    st.bar.className = pres === 'normal' ? '' : pres;
+    var top = d.top || [];
+    st.top.innerHTML = top.length ? '' : 'Busiest apps appear after a moment';
+    top.forEach(function (p, i) {
+      var b = document.createElement('b'); b.textContent = p.name;
+      if (i) st.top.appendChild(document.createTextNode('  \u00b7  '));
+      st.top.appendChild(b);
+      st.top.appendChild(document.createTextNode(' ' + Math.round(p.cpu) + '%'));
+    });
+  }
+  function deckActDraw() {
+    var a = dact, st = a && a.st, d = st && st.d;
+    if (!d) return;
+    activityDraw(st);
+    if (a.mode === 'strip') {
+      var m = d.mem || {};
+      st.memB.textContent = m.total ? Math.round(m.used / m.total * 100) + '%' : '';
+      st.memB.className = m.pressure && m.pressure !== 'normal' ? m.pressure : '';
+    } else st.memB.className = '';
+  }
+  function deckActRefresh() {
+    var a = deckAct();
+    if (a.busy || new Date().getTime() < a.waitUntil) return;
+    a.busy = true;
+    xhr('GET', url('/activity'), null, function (s, text) {
+      a.busy = false;
+      var d = null, st = a.st;
+      if (s === 200) { try { d = JSON.parse(text); } catch (e) {} }
+      if (!d) {
+        if (s === 404) a.waitUntil = new Date().getTime() + 30000;   // a Mac without /activity: ask again in 30 s
+        st.note.textContent = s === 404 ? 'Update OldPhoneDeck on the Mac' : 'The Mac is not answering';
+        st.card.className = st.card.className.replace(/ off\b/g, '') + ' off';
+        return;
+      }
+      st.card.className = st.card.className.replace(/ off\b/g, '');
+      st.d = d;
+      deckActDraw();
+    });
+  }
 
   // ---------- now playing (Spotify / Apple Music on the Mac) ----------
   var PLAY = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M5 3v10l8-5z" fill="#111"/></svg>';
