@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- PhoneDeck Command Center: the Mac window for designing every deck (pages, widgets, apps, look, notifications).
+     Opened from the menu bar item; also works in Safari at http://localhost:8045/studio#k=TOKEN -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoneDeck Command Center</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="stylesheet" href="/deck.css">
+<style>
+  /* macOS 27 tokens, read from AppKit (windowBackground, label/fill opacities, system colors); light/dark follow the Mac. */
+  :root { --bg: #1E1E1E; --side: rgba(46,46,48,.62); --panel: rgba(255,255,255,.047); --panel2: rgba(255,255,255,.098); --hover: rgba(255,255,255,.078);
+    --line: rgba(255,255,255,.098); --text: rgba(255,255,255,.847); --muted: rgba(255,255,255,.549); --dim: rgba(255,255,255,.247);
+    --well: rgba(0,0,0,.28); --knob: #fff; --accent: #0091FF; --accent2: #3CA9FF; --green: #30D158; --red: #FF4245; --orange: #FF9230;
+    --rim: rgba(255,255,255,.12); --shadow: rgba(0,0,0,.35); --r: 14px; color-scheme: dark; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #F6F6F6; --side: rgba(255,255,255,.66); --panel: rgba(255,255,255,.75); --panel2: rgba(0,0,0,.06); --hover: rgba(0,0,0,.045);
+      --line: rgba(0,0,0,.098); --text: rgba(0,0,0,.847); --muted: rgba(0,0,0,.498); --dim: rgba(0,0,0,.259);
+      --well: rgba(0,0,0,.05); --accent: #0088FF; --accent2: #0088FF; --green: #34C759; --red: #FF383C; --orange: #FF8D28;
+      --rim: rgba(255,255,255,.9); --shadow: rgba(0,0,0,.08); color-scheme: light; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px -apple-system, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  #app { display: flex; height: 100%; }
+
+  /* ---- sidebar ---- */
+  #app { padding: 8px 0 8px 8px; }
+  #side { width: 264px; flex: none; background: var(--side); border-radius: 20px; display: flex; flex-direction: column; padding: 44px 10px 10px; overflow-y: auto;
+    backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: inset 0 0 0 .5px var(--rim), 0 0 0 .5px var(--line), 0 8px 30px var(--shadow); }
+  body { background: radial-gradient(ellipse at 0% 0%, rgba(0,145,255,.10), transparent 50%), var(--bg); }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; padding: 0 8px 14px; }
+  .brand b { color: var(--accent); font-weight: 700; }
+  .sect { font-size: 11px; font-weight: 600; color: var(--muted); padding: 14px 8px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .dev { display: flex; align-items: center; gap: 11px; padding: 10px; border-radius: var(--r); cursor: default; margin-bottom: 4px; border: 1px solid transparent; }
+  .dev:hover { background: var(--hover); }
+  .dev.on { background: var(--panel2); border-color: var(--line); }
+  .dev .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--well); display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 .5px var(--line); }
+  .dev .ic svg { width: 20px; height: 20px; stroke: var(--text); fill: none; stroke-width: 1.6; }
+  .dev .nm { font-weight: 600; }
+  .dev .st { font-size: 11px; color: var(--muted); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); display: inline-block; }
+  .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .pg { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; margin-bottom: 2px; cursor: default; }
+  .pg:hover { background: var(--hover); }
+  .pg.on { background: var(--panel2); }
+  .pg.over { box-shadow: inset 0 2px 0 var(--accent); }
+  .thumb { width: 54px; height: 34px; border-radius: 7px; background: var(--well); position: relative; flex: none; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+  .thumb i { position: absolute; border-radius: 2.5px; background: var(--dim); overflow: hidden; }
+  .thumb i.w { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .thumb i img { width: 100%; height: 100%; display: block; }
+  .pg .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pg .st { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .pg .st.warn { color: var(--orange); }
+  .pg .more { opacity: 0; border: 0; background: var(--panel2); color: var(--text); width: 24px; height: 24px; border-radius: 12px; font-size: 14px; line-height: 20px; padding: 0; flex: none; cursor: default; }
+  .pg:hover .more, .pg.on .more { opacity: 1; }
+  .rn { width: 100%; font: inherit; font-weight: 600; color: var(--text); background: var(--well); border: 0; border-radius: 6px; padding: 2px 6px; outline: 2px solid var(--accent); }
+  .pmenu { position: fixed; z-index: 60; min-width: 180px; padding: 5px; border-radius: 12px; background: var(--side); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow: inset 0 0 0 .5px var(--rim), 0 0 0 .5px var(--line), 0 12px 32px var(--shadow); }
+  .pmenu div { padding: 6px 10px; border-radius: 7px; cursor: default; }
+  .pmenu div:hover { background: var(--accent); color: #fff; }
+  .pmenu .red { color: var(--red); } .pmenu .sep { height: 1px; padding: 0; margin: 4px 6px; background: var(--line); } .pmenu .sep:hover { background: var(--line); }
+  .dlg { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.28); display: grid; place-items: center; }
+  .dbox { width: 320px; padding: 20px; border-radius: 20px; background: var(--side); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: inset 0 0 0 .5px var(--rim), 0 20px 50px var(--shadow); text-align: center; }
+  .dbox h4 { margin: 0 0 6px; font-size: 15px; } .dbox p { margin: 0 0 16px; color: var(--muted); line-height: 1.4; }
+  .drow { display: flex; gap: 8px; } .drow .btn { flex: 1; padding: 7px 0; }
+  .btn.danger-fill { background: var(--red); color: #fff; box-shadow: none; }
+  #title { cursor: text; } #title:hover { background: var(--hover); }
+  .add { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; color: var(--muted); cursor: default; }
+  .add:hover { color: var(--text); background: var(--hover); }
+  .add span { width: 54px; height: 34px; border-radius: 6px; border: 1.5px dashed var(--dim); display: grid; place-items: center; font-size: 18px; }
+  .nav { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-weight: 500; cursor: default; }
+  .nav:hover { background: var(--hover); }
+  .nav.on { background: var(--panel2); }
+  .nav .e { width: 20px; text-align: center; }
+  .nav b { margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 99px; background: color-mix(in srgb, var(--orange) 22%, transparent); color: var(--orange); }
+  .grow { flex: 1; min-width: 0; }
+
+  /* ---- main ---- */
+  #main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  #top { display: flex; align-items: center; gap: 12px; padding: 36px 28px 0; }
+  #title { font-size: 26px; font-weight: 700; letter-spacing: -.5px; background: transparent; border: 0; outline: none; padding: 2px 4px; margin-left: -4px; border-radius: 6px; width: 260px; }
+  #title:focus { background: var(--panel2); }
+  #pageIcon { width: 38px; height: 38px; border: 0; border-radius: 10px; background: var(--panel2); color: var(--accent); display: grid; place-items: center; cursor: default; box-shadow: inset 0 0 0 .5px var(--line); }
+  #pageIcon:hover { filter: brightness(1.15); }
+  .gly { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .ipick { position: fixed; z-index: 60; padding: 8px; border-radius: 14px; display: grid; grid-template-columns: repeat(6, 36px); gap: 4px; background: var(--side);
+    backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: inset 0 0 0 .5px var(--rim), 0 0 0 .5px var(--line), 0 12px 32px var(--shadow); }
+  .ipick button { width: 36px; height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--text); display: grid; place-items: center; cursor: default; }
+  .ipick button:hover { background: var(--hover); } .ipick button.on { background: var(--accent); color: #fff; }
+  .pg .nm .gly { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; color: var(--accent); }
+  .nav .e .gly { width: 17px; height: 17px; color: var(--accent); }
+  .wglyph { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 9px; color: #fff; flex: none; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2); }
+  .wglyph svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .bolt { width: 11px; height: 11px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+  .pjk { display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto 6px; border-radius: 10.3px; background: linear-gradient(160deg, #3A3A3E, #1C1C1F); color: #FF9F6B; position: relative; }
+  .pjk svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; }
+  .li small { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #live { font-size: 10px; font-weight: 700; letter-spacing: .4px; padding: 3px 9px; border-radius: 99px; background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); display: none; align-items: center; gap: 5px; }
+  #live.on { display: inline-flex; }
+  #hint { color: var(--muted); padding: 2px 28px 0; }
+  #saved { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .btn { border: 0; background: var(--panel2); padding: 6px 14px; border-radius: 99px; font-weight: 500; cursor: default; box-shadow: inset 0 0 0 .5px var(--line); }
+  .btn:hover { background: var(--hover); filter: brightness(1.15); }
+  .btn.primary { background: var(--accent); color: #fff; box-shadow: none; }
+  .btn.danger:hover { background: color-mix(in srgb, var(--red) 22%, transparent); color: var(--red); }
+  select.btn { appearance: none; padding-right: 26px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%; background-size: 4px 4px; background-repeat: no-repeat; }
+
+  #stageWrap { position: relative; display: flex; gap: 18px; padding: 12px 28px 0; min-height: 0; flex: 1; }
+  #frameBox { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
+  #frame { position: relative; background: #050505; border-radius: 34px; padding: 14px; box-shadow: 0 0 0 1px #333, 0 0 0 4px #1a1a1a, 0 30px 60px rgba(0,0,0,.5); }
+  #frame.classic { border-radius: 40px; padding: 14px 54px; }
+  #frame.classic::before { content: ""; position: absolute; left: 16px; top: 50%; width: 26px; height: 26px; margin-top: -13px; border-radius: 50%; box-shadow: inset 0 0 0 2px #2a2a2a; }
+  #frame.tablet { border-radius: 26px; padding: 18px; }
+  #screen { position: relative; overflow: hidden; border-radius: 6px; }
+  #frame.phone #screen { border-radius: 22px; }
+  #frame.tablet #screen { border-radius: 12px; }
+  #mirror { margin-top: 12px; color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  #opts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+  .seg { display: inline-flex; background: var(--panel2); border-radius: 99px; padding: 2px; box-shadow: inset 0 0 0 .5px var(--line); }
+  .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 99px; font-weight: 500; color: var(--muted); cursor: default; }
+  .seg button.on { background: var(--knob); color: #000; box-shadow: 0 1px 3px var(--shadow); }
+  .chk { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 99px; background: var(--panel2); box-shadow: inset 0 0 0 .5px var(--line); font-weight: 500; color: var(--muted); cursor: default; }
+  .chk.on { color: var(--text); }
+  .chk i { width: 26px; height: 15px; border-radius: 8px; background: var(--dim); position: relative; }
+  .chk i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .chk.on i { background: var(--accent); } .chk.on i::after { transform: translateX(11px); }
+  #warn { margin-top: 10px; color: var(--orange); font-size: 12px; display: none; }
+  #warn button { margin-left: 8px; }
+
+  /* inspector */
+  #insp { width: 250px; flex: none; background: var(--panel); border-radius: 18px; padding: 16px; align-self: center; box-shadow: inset 0 0 0 .5px var(--line); }
+  #insp h4 { margin: 0 0 4px; font-size: 15px; }
+  #insp p { margin: 0 0 14px; color: var(--muted); line-height: 1.4; }
+  #insp .lab { font-size: 11px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
+  #insp .seg { display: flex; } #insp .seg button { flex: 1; }
+  #insp .sizes { display: flex; gap: 8px; }
+  #insp .sz { flex: 1; text-align: center; padding: 8px 2px; border-radius: 12px; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); cursor: default; color: var(--muted); font-weight: 600; font-size: 11px; }
+  #insp .sz.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
+  #insp .sz.no { opacity: .3; pointer-events: none; }
+  #insp .sz div { margin: 0 auto 6px; background: color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 3px; }
+  #insp .row { display: flex; gap: 8px; margin-top: 8px; } #insp .row .btn { flex: 1; } #insp .nudge .btn { font-size: 15px; padding: 5px 0; }
+  #insp select { width: 100%; }
+  #insp .empty { color: var(--muted); line-height: 1.5; }
+  #insp .empty b { color: var(--text); }
+
+  /* library */
+  #lib { flex: 0 0 248px; margin: 18px 28px 14px; background: var(--panel); border-radius: 20px; box-shadow: inset 0 0 0 .5px var(--line); display: flex; flex-direction: column; overflow: hidden; }
+  #libTop { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  #ltabs { display: inline-flex; background: var(--panel2); border-radius: 99px; padding: 2px; box-shadow: inset 0 0 0 .5px var(--line); }
+  .ltab { font-size: 12px; font-weight: 500; color: var(--muted); cursor: default; padding: 4px 14px; border-radius: 99px; }
+  .ltab.on { color: #000; background: var(--knob); box-shadow: 0 1px 3px var(--shadow); }
+  #search { margin-left: auto; width: 220px; padding: 6px 10px 6px 28px; border-radius: 99px; border: 0; background: var(--panel2) no-repeat 9px 50% / 13px url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%238d8d96" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>'); outline: none; }
+  #count { color: var(--dim); font-size: 11px; width: 34px; text-align: right; }
+  #libGrid { flex: 1; overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 14px 10px; align-content: start; }
+  #libGrid.wide { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .li { text-align: center; cursor: grab; border-radius: 12px; padding: 6px 2px; }
+  .li:hover { background: var(--hover); }
+  .li img { width: 46px; height: 46px; display: block; margin: 0 auto 6px; pointer-events: none; }
+  .li .g { width: 46px; height: 46px; margin: 0 auto 6px; border-radius: 10.3px; background: var(--panel2); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
+  .li .g svg { width: 24px; height: 24px; stroke: var(--text); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .li span { display: block; font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .li.used span::after { content: " ✓"; color: var(--accent2); }
+  .wi { display: flex; gap: 12px; align-items: center; text-align: left; padding: 10px; border-radius: 16px; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); cursor: grab; }
+  .wi:hover { box-shadow: inset 0 0 0 1px var(--dim); }
+  .wi .e { font-size: 24px; width: 40px; height: 40px; border-radius: 9px; background: var(--well); display: grid; place-items: center; flex: none; }
+  .wi b { display: block; font-size: 13px; } .wi small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; line-height: 1.35; }
+  .wi .szs { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .wi .szs em { font-style: normal; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: var(--panel2); color: var(--text); cursor: default; }
+  .wi .szs em:hover { background: var(--accent); color: #fff; }
+
+  /* settings panes */
+  #pane { flex: 1; overflow-y: auto; padding: 0 28px 28px; display: none; }
+  #pane h2 { font-size: 26px; letter-spacing: -.4px; margin: 0 0 4px; }
+  #pane .lead { color: var(--muted); margin: 0 0 18px; }
+  .card { background: var(--panel); border-radius: 18px; box-shadow: inset 0 0 0 .5px var(--line); padding: 16px 18px; margin-bottom: 14px; max-width: 760px; }
+  .card h3 { margin: 0 0 12px; font-size: 13px; }
+  .opt { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .opt:first-of-type { border-top: 0; }
+  .opt .t { flex: 1; } .opt .t small { display: block; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .themes { display: flex; gap: 12px; }
+  .th { width: 150px; cursor: default; text-align: center; font-weight: 600; color: var(--muted); }
+  .th div { height: 90px; border-radius: 12px; margin-bottom: 8px; box-shadow: inset 0 0 0 1px var(--line); position: relative; overflow: hidden; }
+  .th.on { color: var(--text); } .th.on div { box-shadow: 0 0 0 2px var(--accent); }
+  .swatches { display: flex; gap: 10px; }
+  .sw { width: 30px; height: 30px; border-radius: 50%; cursor: default; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
+  .sw.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #fff; }
+  .wp { width: 110px; height: 66px; border-radius: 10px; cursor: default; box-shadow: inset 0 0 0 1px var(--line); position: relative; }
+  .wp.on { box-shadow: 0 0 0 2px var(--accent); }
+  .wp span { position: absolute; left: 8px; bottom: 6px; font-size: 11px; font-weight: 600; }
+  code, pre { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: var(--well); padding: 12px; border-radius: 10px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: var(--text); user-select: text; -webkit-user-select: text; margin: 8px 0; }
+  .perm { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .perm:first-of-type { border-top: 0; }
+  .perm .s { font-size: 12px; font-weight: 700; }
+  .perm .s.ok { color: var(--green); } .perm .s.no { color: var(--orange); }
+  .mute { display: inline-flex; align-items: center; gap: 8px; margin: 4px 6px 4px 0; padding: 6px 10px 6px 6px; border-radius: 10px; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+  .mute img { width: 22px; height: 22px; }
+  .mute.off { opacity: .4; text-decoration: line-through; }
+  a { color: var(--accent2); }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; padding: 9px 18px; border-radius: 99px; background: var(--side); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 10px 30px rgba(0,0,0,.5); transition: .25s; pointer-events: none; font-weight: 600; z-index: 50; }
+  #toast.on { opacity: 1; transform: translateX(-50%); }
+  .linkrow { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  .linkrow code { flex: 1; background: var(--well); padding: 8px 10px; border-radius: 8px; user-select: text; -webkit-user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Inside PhoneDeck.app (html.native): the Mac draws a real translucent sidebar under the page, so the sidebar
+     is left clear and its spread shadow paints the window background everywhere else. */
+  html.native, html.native body { background: transparent; }
+  html.native #side { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
+    box-shadow: inset 0 0 0 .5px var(--rim), 0 0 0 .5px var(--line), 0 0 0 6000px var(--bg); }
+  html.native body { -webkit-user-select: none; user-select: none; cursor: default; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand">phone<b>deck</b> <span style="color:var(--muted);font-weight:500">Command Center</span></div>
+    <div class="sect">Devices</div>
+    <div id="devs"></div>
+    <div class="sect"><span>Pages</span><span id="pgCount"></span></div>
+    <div id="pages"></div>
+    <div class="add" id="addPage"><span>+</span>New Page</div>
+    <div class="grow"></div>
+    <div class="sect">Settings</div>
+    <div class="nav" data-pane="look"><span class="e" data-g="brush"></span>Appearance</div>
+    <div class="nav" data-pane="notes"><span class="e" data-g="bell"></span>Notifications<b id="noteWarn" style="display:none">Setup</b></div>
+    <div class="nav" data-pane="connect"><span class="e" data-g="wifi"></span>Connect a device</div>
+  </aside>
+
+  <main id="main">
+    <div id="editor" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <div id="top">
+        <button id="pageIcon" title="Page icon"></button>
+        <input id="title" spellcheck="false" title="Page name">
+        <span id="live"><span class="dot ok"></span>LIVE</span>
+        <div id="saved"></div>
+        <select class="btn" id="shortcut" title="Run a Shortcut (for example a Focus) when this page opens on the device"></select>
+        <button class="btn danger" id="delPage">Delete page</button>
+      </div>
+      <div id="hint">Drag apps, widgets and controls onto any spot on the device; drag tiles to move them. Click a tile to resize or remove it. Double-click a page in the sidebar to rename it.</div>
+      <div id="stageWrap">
+        <div id="frameBox">
+          <div id="frame"><div id="screen"></div></div>
+          <div id="mirror"><span class="dot" id="mDot"></span><span id="mText"></span></div>
+          <div id="opts"></div>
+          <div id="warn"></div>
+        </div>
+        <div id="insp"></div>
+      </div>
+      <div id="lib">
+        <div id="libTop">
+          <span id="ltabs"><span class="ltab on" data-tab="apps">Apps</span><span class="ltab" data-tab="widgets">Widgets</span><span class="ltab" data-tab="controls">Controls</span><span class="ltab" data-tab="projects">Claude Code</span></span>
+          <input id="search" placeholder="Search" spellcheck="false">
+          <span id="count"></span>
+        </div>
+        <div id="libGrid"></div>
+      </div>
+    </div>
+    <div id="pane"></div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script src="/deck.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const api = PD.api;
+const glyph = (n, cls = 'gly') => n ? `<svg viewBox="0 0 24 24" class="${cls}">${PD.GLYPHS[n]}</svg>` : '';
+api.token = (/k=([a-z0-9]+)/.exec(location.hash) || [])[1] || localStorage.getItem('token');
+if (api.token) localStorage.setItem('token', api.token);
+const getJSON = (path, extra = '') => new Promise(res => api.json(path, extra, j => res(j)));
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 1800); }
+
+const DEVICE_ICON = {
+  classic: '<rect x="4" y="7" width="16" height="10" rx="2.5"/><circle cx="6.6" cy="12" r=".9"/>',
+  phone: '<rect x="3" y="7" width="18" height="10" rx="3"/><path d="M5.5 10.5v3"/>',
+  tablet: '<rect x="2" y="5" width="20" height="14" rx="2"/>',
+};
+const DEVICE_NAMES = { classic: 'iPhone 4S', phone: 'iPhone 17', tablet: 'iPad mini' };
+
+let layout = null, kind = localStorage.getItem('cc-kind') || 'classic', pageIdx = 0, sel = null, deck = null, clients = {}, info = {};
+let pane = null, libTab = 'apps', history = [], shortcuts = [];
+const dev = () => layout.devices[kind];
+const grid = () => { const p = PD.PROFILES[kind]; return p.grid[dev().density] || p.grid.compact; };   // [cols, rows]
+const page = () => dev().pages[pageIdx];
+
+// ---------- saving (debounced; decks pick the new layout up within ~2 s) ----------
+function change(fn, opts = {}) {
+  history.push(JSON.stringify(layout)); if (history.length > 80) history.shift();
+  fn();
+  render(opts);
+  clearTimeout(change.t);
+  $('saved').textContent = 'Saving…';
+  change.t = setTimeout(save, 350);
+}
+function save() {
+  PD.saveLayout(layout, ok => { $('saved').textContent = ok ? 'Saved · syncing to devices' : 'Could not save'; });   // own saves don't trigger a reload
+}
+const typing = () => /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+function undo() {
+  if (typing()) return document.execCommand('undo');
+  if (!history.length) return;
+  layout = JSON.parse(history.pop()); sel = null; render(); clearTimeout(change.t); change.t = setTimeout(save, 350); toast('Undone');
+}
+// Called by PhoneDeck.app's menu bar (Edit › Undo, File › New Page, View › …).
+// Before the layout has loaded, the last request waits and runs once it has.
+const whenReady = fn => (...a) => layout ? fn(...a) : (window.cc.pending = () => fn(...a));
+window.cc = {
+  undo, redo: () => typing() && document.execCommand('redo'),
+  newPage: whenReady(() => $('addPage').click()),
+  device: whenReady(k => { kind = k; localStorage.setItem('cc-kind', kind); pageIdx = 0; sel = null; pane = null; render(); }),
+  pane: whenReady(p => { pane = p; sel = null; render(); }),
+};
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !typing()) { e.preventDefault(); undo(); }
+  if ((e.key === 'Backspace' || e.key === 'Delete') && sel && !/INPUT|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); removeSel(); }
+});
+
+// ---------- sidebar ----------
+function seen(k) {
+  const c = clients[k]; if (!c) return { ok: false, text: 'Not connected yet' };
+  const s = (Date.now() - c.at) / 1000;
+  if (s < 10) return { ok: true, text: 'Connected · ' + ((dev && layout.devices[k].pages[c.page] || {}).name || 'Page ' + (c.page + 1)), page: c.page };
+  return { ok: false, text: 'Last seen ' + (s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' d ago') };
+}
+function renderSide() {
+  $('devs').innerHTML = ['classic', 'phone', 'tablet'].map(k => {
+    const st = seen(k);
+    return `<div class="dev ${k === kind && !pane ? 'on' : ''}" data-k="${k}"><div class="ic"><svg viewBox="0 0 24 24">${DEVICE_ICON[k]}</svg></div>
+      <div class="grow"><div class="nm">${DEVICE_NAMES[k]}</div><div class="st"><span class="dot ${st.ok ? 'ok' : ''}"></span>${PD.esc(st.text)}</div></div></div>`;
+  }).join('');
+  $('devs').querySelectorAll('.dev').forEach(d => d.onclick = () => { kind = d.dataset.k; localStorage.setItem('cc-kind', kind); pageIdx = 0; sel = null; pane = null; render(); });
+  const p = PD.PROFILES[kind], g = p.grid[dev().density] || p.grid.compact, cells = g[0] * g[1];
+  $('pgCount').textContent = dev().pages.length;
+  $('pages').innerHTML = '';
+  dev().pages.forEach((pg, i) => {
+    const placed = PD.pack(pg.items, g[0], g[1]), used = placed.filter(x => !x.overflow).reduce((n, x) => n + x.w * x.h, 0), over = placed.filter(x => x.overflow).length;
+    const el = document.createElement('div');
+    el.className = 'pg' + (i === pageIdx && !pane ? ' on' : ''); el.draggable = true;
+    const cw = 54 / g[0], ch = 34 / g[1];
+    el.innerHTML = `<div class="thumb">${placed.filter(x => !x.overflow).map(x => {
+      const app = x.item.t === 'app' ? (PD.appByPath(x.item.path) || PD.appByName(x.item.name)) : x.item.t === 'claude' ? PD.appByName('Claude') : null;
+      return `<i class="${x.item.t === 'w' ? 'w' : ''}" style="left:${x.c * cw + .7}px;top:${x.r * ch + .7}px;width:${x.w * cw - 1.4}px;height:${x.h * ch - 1.4}px">${app ? `<img src="${PD.iconUrl(app.path)}">` : ''}</i>`;
+    }).join('')}</div><div class="grow"><div class="nm">${glyph(PD.iconName(pg.icon))}${PD.esc(pg.name)}</div>
+      <div class="st ${over ? 'warn' : ''}">Page ${i + 1} · ${used}/${cells}${over ? ` · ${over} hidden` : ''}${pg.shortcut ? ` · ${glyph('bolt', 'bolt')}` : ''}</div></div>
+      <button class="more" title="Rename, duplicate or delete">⋯</button>`;
+    el.querySelector('.more').onclick = e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); openPageMenu(i, r.left, r.bottom + 4); };
+    el.ondblclick = e => { e.preventDefault(); renamePage(i); };
+    el.oncontextmenu = e => { e.preventDefault(); openPageMenu(i, e.clientX, e.clientY); };
+    el.onclick = () => { pageIdx = i; sel = null; pane = null; render(); if (deck) deck.goTo(i); };
+    el.ondragstart = e => e.dataTransfer.setData('text/page', String(i));
+    el.ondragover = e => { if (e.dataTransfer.types.includes('text/page')) { e.preventDefault(); el.classList.add('over'); } };
+    el.ondragleave = () => el.classList.remove('over');
+    el.ondrop = e => {
+      el.classList.remove('over'); const from = +e.dataTransfer.getData('text/page'); if (isNaN(from) || from === i) return;
+      change(() => { const [m] = dev().pages.splice(from, 1); dev().pages.splice(i, 0, m); pageIdx = i; });
+    };
+    $('pages').appendChild(el);
+  });
+  document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.pane === pane));
+}
+$('addPage').onclick = () => change(() => {
+  dev().pages.push({ id: PD.uid(), name: 'Page ' + (dev().pages.length + 1), icon: 'sparkles', shortcut: '', items: [] });
+  pageIdx = dev().pages.length - 1; sel = null; pane = null;
+});
+document.querySelectorAll('.nav').forEach(n => n.onclick = () => { pane = n.dataset.pane; sel = null; render(); });
+document.querySelectorAll('[data-g]').forEach(n => { n.innerHTML = glyph(n.dataset.g); });
+
+// ---------- header ----------
+$('title').oninput = e => { page().name = e.target.value; clearTimeout(change.t); change.t = setTimeout(() => { save(); render({ keepFocus: true }); }, 500); };
+let iconPicker = null;
+$('pageIcon').onclick = e => {
+  e.stopPropagation();
+  if (iconPicker) { iconPicker.remove(); iconPicker = null; return; }
+  iconPicker = document.createElement('div'); iconPicker.className = 'ipick';
+  const cur = PD.iconName(page().icon);
+  iconPicker.innerHTML = PD.PAGE_ICONS.map(n => `<button data-n="${n}" class="${n === cur ? 'on' : ''}" title="${n}">${glyph(n)}</button>`).join('');
+  const r = $('pageIcon').getBoundingClientRect();
+  iconPicker.style.left = r.left + 'px'; iconPicker.style.top = r.bottom + 6 + 'px';
+  document.body.appendChild(iconPicker);
+  iconPicker.onclick = ev => { const b = ev.target.closest('[data-n]'); if (!b) return; iconPicker.remove(); iconPicker = null; change(() => { page().icon = b.dataset.n; }); };
+};
+document.addEventListener('mousedown', e => { if (iconPicker && !iconPicker.contains(e.target) && e.target.closest('#pageIcon') === null) { iconPicker.remove(); iconPicker = null; } });
+function ask(title, body, okLabel, danger) {
+  return new Promise(res => {
+    const d = document.createElement('div'); d.className = 'dlg';
+    d.innerHTML = `<div class="dbox"><h4>${PD.esc(title)}</h4><p>${PD.esc(body)}</p><div class="drow"><button class="btn" data-v="0">Cancel</button><button class="btn ${danger ? 'danger-fill' : 'primary'}" data-v="1">${PD.esc(okLabel)}</button></div></div>`;
+    document.body.appendChild(d);
+    const done = v => { d.remove(); document.removeEventListener('keydown', key, true); res(v); };
+    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } if (e.key === 'Enter') { e.stopPropagation(); done(true); } };
+    document.addEventListener('keydown', key, true);
+    d.onclick = e => { if (e.target === d) done(false); const b = e.target.closest('[data-v]'); if (b) done(b.dataset.v === '1'); };
+    d.querySelector('[data-v="1"]').focus();
+  });
+}
+async function deletePage(i) {
+  if (dev().pages.length < 2) return toast('A deck needs at least one page');
+  const pg = dev().pages[i];
+  if (!await ask(`Delete “${pg.name}”?`, `Its ${pg.items.length} item${pg.items.length === 1 ? '' : 's'} will be removed from the ${DEVICE_NAMES[kind]}. ⌘Z undoes it.`, 'Delete Page', true)) return;
+  change(() => { dev().pages.splice(i, 1); if (pageIdx >= i) pageIdx = Math.max(0, pageIdx - 1); sel = null; pane = null; });
+  toast('Page deleted');
+}
+function duplicatePage(i) {
+  change(() => { const c = JSON.parse(JSON.stringify(dev().pages[i])); c.id = PD.uid(); c.name += ' copy'; dev().pages.splice(i + 1, 0, c); pageIdx = i + 1; sel = null; });
+}
+// Rename in place in the sidebar (double-click, the ⋯ menu, or the title field above the preview)
+function renamePage(i) {
+  const row = $('pages').children[i]; if (!row) return;
+  const nm = row.querySelector('.nm'), pg = dev().pages[i];
+  nm.innerHTML = `<input class="rn" value="${PD.esc(pg.name)}" spellcheck="false">`;
+  const inp = nm.querySelector('input'); inp.focus(); inp.select();
+  let finished = false;
+  const finish = ok => {
+    if (finished) return; finished = true;
+    const v = inp.value.trim();
+    if (ok && v && v !== pg.name) change(() => { pg.name = v; }); else renderSide();
+  };
+  inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+  inp.onblur = () => finish(true);
+  inp.onclick = e => e.stopPropagation();
+}
+let pageMenu = null;
+function openPageMenu(i, x, y) {
+  closePageMenu();
+  pageMenu = document.createElement('div'); pageMenu.className = 'pmenu';
+  pageMenu.innerHTML = `<div data-a="rename">Rename</div><div data-a="dup">Duplicate</div><div class="sep"></div><div data-a="del" class="red">Delete Page…</div>`;
+  document.body.appendChild(pageMenu);
+  pageMenu.style.left = Math.min(x, innerWidth - 190) + 'px'; pageMenu.style.top = Math.min(y, innerHeight - 140) + 'px';
+  pageMenu.onclick = e => {
+    const a = e.target.dataset.a; if (!a) return; closePageMenu();
+    if (a === 'rename') { pageIdx = i; pane = null; render(); renamePage(i); }
+    if (a === 'dup') duplicatePage(i);
+    if (a === 'del') deletePage(i);
+  };
+}
+function closePageMenu() { if (pageMenu) pageMenu.remove(); pageMenu = null; }
+document.addEventListener('mousedown', e => { if (pageMenu && !pageMenu.contains(e.target)) closePageMenu(); });
+$('delPage').onclick = () => deletePage(pageIdx);
+$('shortcut').onchange = e => change(() => { page().shortcut = e.target.value; });
+function renderShortcuts() {
+  const cur = page().shortcut || '';
+  const names = shortcuts.includes(cur) || !cur ? shortcuts : [cur, ...shortcuts];
+  $('shortcut').innerHTML = `<option value="">No shortcut when opened</option>` + names.map(n => `<option ${n === cur ? 'selected' : ''} value="${PD.esc(n)}">Run “${PD.esc(n)}” when opened</option>`).join('');
+}
+
+// ---------- preview ----------
+function previewSize() {
+  const p = PD.PROFILES[kind], c = clients[kind];
+  if (kind === 'tablet') return c && c.w > c.h ? [c.w, c.h] : p.preview;
+  if (kind === 'phone' && c && c.w > c.h) return [Math.max(480, Math.min(760, Math.round(320 * c.w / c.h))), 320];
+  return p.preview;
+}
+function renderPreview() {
+  const [W, H] = previewSize(), screen = $('screen'), box = $('frameBox');
+  $('frame').className = kind;
+  const padX = kind === 'classic' ? 108 : kind === 'tablet' ? 36 : 28, padY = kind === 'tablet' ? 36 : 28;
+  const availW = box.clientWidth - padX - 20, availH = box.clientHeight - padY - 90;
+  const s = Math.max(.3, Math.min(availW / W, availH / H, kind === 'tablet' ? .9 : 1.5));
+  screen.style.width = W * s + 'px'; screen.style.height = H * s + 'px';
+  screen.innerHTML = '';
+  deck = new PD.Deck(screen, kind, {
+    edit: true, selected: sel,
+    onSelect: (zone, i) => { sel = zone ? { zone, i } : null; render({ noPreview: false }); },
+    onPage: i => { pageIdx = i; sel = null; render(); },
+  });
+  deck.page = pageIdx;
+  deck.setLayout(layout, W, H);
+  deck.root.style.transform = `scale(${s})`;
+  deck.scale = s;
+  bindDrops(deck.root);
+  // overflow warning
+  const over = deck.overflow || [];
+  $('warn').style.display = over.length ? 'block' : 'none';
+  if (over.length) {
+    $('warn').innerHTML = `⚠︎ ${over.length} item${over.length > 1 ? 's don’t' : ' doesn’t'} fit on this page: ${over.map(i => PD.esc(itemName(page().items[i]))).join(', ')}<button class="btn" id="moveOver">Move to a new page</button>`;
+    $('moveOver').onclick = () => change(() => {
+      const items = over.map(i => page().items[i]);
+      page().items = page().items.filter((_, i) => !over.includes(i));
+      dev().pages.splice(pageIdx + 1, 0, { id: PD.uid(), name: page().name + ' 2', icon: page().icon, shortcut: '', items });
+      pageIdx++;
+    });
+  }
+  const st = seen(kind);
+  $('mDot').className = 'dot' + (st.ok ? ' ok' : '');
+  $('mText').textContent = st.ok ? `Mirroring ${DEVICE_NAMES[kind]} · landscape` : `${DEVICE_NAMES[kind]} · ${st.text.toLowerCase()} · preview uses live Mac data`;
+  $('live').classList.toggle('on', st.ok && st.page === pageIdx);
+  // device options
+  const d = dev(), g = PD.PROFILES[kind].grid;
+  $('opts').innerHTML = `<div class="seg" id="dens"><button data-v="comfortable" class="${d.density === 'comfortable' ? 'on' : ''}">Comfortable ${g.comfortable.join('×')}</button><button data-v="compact" class="${d.density !== 'comfortable' ? 'on' : ''}">Compact ${g.compact.join('×')}</button></div>
+    <span class="chk ${d.labels !== false ? 'on' : ''}" id="labels"><i></i>App names</span>
+    <span class="chk ${d.dock.on ? 'on' : ''}" id="dock"><i></i>Dock</span>`;
+  $('dens').querySelectorAll('button').forEach(b => b.onclick = () => change(() => { d.density = b.dataset.v; }));
+  $('labels').onclick = () => change(() => { d.labels = d.labels === false; });
+  $('dock').onclick = () => change(() => { d.dock.on = !d.dock.on; });
+}
+
+// ---------- drag & drop ----------
+let dragPayload = null;   // { item } from the library, or { from: { zone, i } } from the preview
+function bindDrops(rootEl) {
+  rootEl.querySelectorAll('[data-i]').forEach(n => n.addEventListener('dragstart', e => {
+    dragPayload = { from: { zone: n.dataset.zone, i: +n.dataset.i } }; e.dataTransfer.setData('text/plain', 'tile'); e.dataTransfer.effectAllowed = 'move';
+  }));
+  let lastOver = null;
+  const target = e => {
+    const t = e.target.closest('[data-i], .slot, .dock, .page');
+    return t;
+  };
+  rootEl.addEventListener('dragover', e => {
+    if (!dragPayload) return;
+    e.preventDefault();
+    const t = target(e);
+    if (lastOver && lastOver !== t) lastOver.classList.remove('over');
+    if (t && (t.dataset.i !== undefined || t.classList.contains('slot'))) t.classList.add('over');
+    lastOver = t;
+  });
+  rootEl.addEventListener('dragleave', () => { if (lastOver) lastOver.classList.remove('over'); });
+  rootEl.addEventListener('drop', e => {
+    e.preventDefault();
+    const p = dragPayload; dragPayload = null; if (!p) return;
+    const t = target(e); if (lastOver) lastOver.classList.remove('over');
+    let zone = 'page', at = null, cell = null;
+    if (t && t.dataset.i !== undefined) {
+      zone = t.dataset.zone; at = +t.dataset.i;
+      if (zone === 'page') { const pl = PD.pack(page().items, ...grid())[at]; if (pl && !pl.overflow) cell = [pl.c, pl.r]; }
+    }
+    else if (t && t.classList.contains('slot')) { const [r, c] = t.dataset.slot.split(',').map(Number); cell = [c, r]; }
+    else if (t && (t.classList.contains('dock') || t.closest('.dock'))) zone = 'dock';
+    if (zone === 'dock' && !dev().dock.on) zone = 'page';
+    // Page grid: items go exactly where they are dropped (iOS-style); the dock stays an ordered row.
+    if (zone === 'page') return change(() => {
+      const [cols, rows] = grid(), items = page().items;
+      let idx;
+      if (p.from && p.from.zone === 'page') idx = p.from.i;
+      else {
+        const item = p.from ? dev().dock.items.splice(p.from.i, 1)[0] : JSON.parse(JSON.stringify(p.item));
+        if (!PD.addItem(items, item, cols, rows)) { toast('This page is full: remove something first'); if (p.from) dev().dock.items.splice(p.from.i, 0, item); return; }
+        idx = items.length - 1;
+      }
+      if (cell) PD.moveItem(items, idx, cell[0], cell[1], cols, rows);
+      sel = { zone: 'page', i: idx };
+    });
+    change(() => {
+      const list = z => z === 'dock' ? dev().dock.items : page().items;
+      let item = p.item ? JSON.parse(JSON.stringify(p.item)) : null;
+      if (zone === 'dock' && item && item.t === 'w') { toast('The dock holds apps and controls, not widgets'); zone = 'page'; at = null; }
+      if (p.from) {
+        const src = list(p.from.zone);
+        if (p.from.zone === 'page' && zone === 'dock' && src[p.from.i].t === 'w') { toast('Widgets can’t go in the dock'); return; }
+        item = src.splice(p.from.i, 1)[0];
+        if (p.from.zone === zone && at !== null && p.from.i < at) at--;
+      }
+      const dst = list(zone);
+      if (at === null || at > dst.length) dst.push(item); else dst.splice(at, 0, item);
+      sel = { zone, i: at === null ? dst.length - 1 : at };
+    });
+  });
+}
+document.addEventListener('dragend', () => { dragPayload = null; });
+
+// ---------- inspector ----------
+function itemName(it) {
+  if (!it) return '';
+  if (it.t === 'app') { const a = PD.appByPath(it.path) || PD.appByName(it.name); return a ? a.name : it.name || 'App'; }
+  if (it.t === 'claude') return 'Talk to Claude';
+  if (it.t === 'project') return it.name || 'Project';
+  if (it.t === 'action') return (PD.ACTIONS[it.a] || {}).label || it.a;
+  return (PD.WIDGETS[it.w] || {}).label || it.w;
+}
+function selList() { return sel ? (sel.zone === 'dock' ? dev().dock.items : page().items) : null; }
+function removeSel() { const l = selList(); if (!l) return; change(() => { l.splice(sel.i, 1); sel = null; }); }
+function renderInspector() {
+  const box = $('insp'), l = selList(), it = l && l[sel.i];
+  if (!it) {
+    const p = PD.PROFILES[kind], g = p.grid[dev().density] || p.grid.compact;
+    box.innerHTML = `<h4>${DEVICE_NAMES[kind]}</h4><p>${g[0]} × ${g[1]} grid · each app takes one cell.</p>
+      <div class="empty"><b>Widget sizes</b><br>Small · 2×1, a glanceable strip<br>Bar · 4×1, full width<br>Medium · 2×2, a square<br>Large · 4×2, the full widget<br><br>
+      <b>Tips</b><br>Click a library item to add it to the end of the page, or drag it onto a tile to put it before that tile.<br>Swipe pages on the device; ⌘Z undoes.</div>`;
+    return;
+  }
+  const isW = it.t === 'w', def = isW ? PD.WIDGETS[it.w] : null;
+  const desc = isW ? def.desc : it.t === 'app' ? 'Opens the app on your Mac. A red badge shows its Dock notifications.' : it.t === 'claude' ? 'Tap and speak: the device listens and starts (or continues) a conversation with Claude on the Mac. Long-press for New Chat.' : it.t === 'project' ? 'Opens Terminal in ' + it.path + ' with Claude Code running.' : 'A one-tap control for your Mac.';
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">${isW ? `<span class="wglyph" style="background:${def.tint}">${glyph(def.g, '')}</span>` : ''}<h4 style="margin:0">${PD.esc(itemName(it))}</h4></div><p>${PD.esc(desc)}${def && def.modern ? ' Works on the iPhone 17 and iPad.' : ''}</p>
+    ${isW ? `<div class="lab">Size</div><div class="sizes">${PD.SIZE_ORDER.map(s => {
+      const [w, h] = PD.SIZES[s];
+      return `<div class="sz ${it.s === s ? 'on' : ''} ${def.sizes.includes(s) ? '' : 'no'}" data-s="${s}"><div style="width:${w * 8}px;height:${h * 8}px"></div>${PD.SIZE_NAMES[s]}<br><span style="color:var(--dim)">${w}×${h}</span></div>`;
+    }).join('')}</div>` : ''}
+    <div class="lab">Position</div>
+    ${sel.zone === 'page' ? `<div class="row nudge"><button class="btn" data-d="-1,0" title="Left">←</button><button class="btn" data-d="0,-1" title="Up">↑</button><button class="btn" data-d="0,1" title="Down">↓</button><button class="btn" data-d="1,0" title="Right">→</button></div>
+      <p style="margin:8px 0 0;font-size:11px">Or drag it onto any empty spot in the preview.</p>`
+    : `<div class="row"><button class="btn" id="mvL">← Earlier</button><button class="btn" id="mvR">Later →</button></div>`}
+    ${sel.zone === 'page' ? `<div class="lab">Move to page</div><select class="btn" id="mvP">${dev().pages.map((p, i) => `<option value="${i}" ${i === pageIdx ? 'selected' : ''}>${PD.esc(p.name)}</option>`).join('')}</select>` : ''}
+    <div class="row" style="margin-top:16px"><button class="btn danger" id="rm">Remove</button></div>`;
+  box.querySelectorAll('.sz').forEach(z => z.onclick = () => change(() => { it.s = z.dataset.s; }));
+  const mv = d => change(() => { const j = sel.i + d; if (j < 0 || j >= l.length) return; l.splice(j, 0, l.splice(sel.i, 1)[0]); sel.i = j; });
+  if ($('mvL')) { $('mvL').onclick = () => mv(-1); $('mvR').onclick = () => mv(1); }
+  box.querySelectorAll('.nudge [data-d]').forEach(b => b.onclick = () => change(() => {
+    const [cols, rows] = grid(), [dx, dy] = b.dataset.d.split(',').map(Number);
+    const pl = PD.pack(l, cols, rows)[sel.i]; if (!pl || pl.overflow) return;
+    PD.moveItem(l, sel.i, pl.c + dx, pl.r + dy, cols, rows);
+  }));
+  if ($('mvP')) $('mvP').onchange = e => change(() => {
+    const to = +e.target.value; if (to === pageIdx) return;
+    const [cols, rows] = grid(); l.splice(sel.i, 1); delete it.pos;
+    if (!PD.addItem(dev().pages[to].items, it, cols, rows)) { l.splice(sel.i, 0, it); toast('That page is full'); return; }
+    pageIdx = to; sel = { zone: 'page', i: dev().pages[to].items.length - 1 };
+  });
+  $('rm').onclick = removeSel;
+}
+
+// ---------- library ----------
+document.querySelectorAll('.ltab').forEach(t => t.onclick = () => { libTab = t.dataset.tab; document.querySelectorAll('.ltab').forEach(x => x.classList.toggle('on', x === t)); renderLib(); });
+$('search').oninput = renderLib;
+function addItem(item) {
+  const [cols, rows] = grid();
+  if (PD.pack(page().items.concat([item]), cols, rows).some(x => x.overflow && x.item === item)) return toast('This page is full: remove something or drop it on another page');
+  change(() => { PD.addItem(page().items, item, cols, rows); sel = { zone: 'page', i: page().items.length - 1 }; });
+}
+function libItem(html, item, cls = 'li') {
+  const el = document.createElement('div'); el.className = cls; el.innerHTML = html; el.draggable = true;
+  el.ondragstart = e => { dragPayload = { item }; e.dataTransfer.setData('text/plain', 'lib'); e.dataTransfer.effectAllowed = 'copy'; };
+  el.onclick = e => { if (e.target.dataset.s) return; addItem(JSON.parse(JSON.stringify(item))); };
+  return el;
+}
+function renderLib() {
+  const grid = $('libGrid'), q = $('search').value.toLowerCase().trim();
+  grid.innerHTML = ''; grid.classList.toggle('wide', libTab === 'widgets');
+  const usedPaths = new Set(); dev().pages.forEach(p => p.items.forEach(i => i.t === 'app' && usedPaths.add(i.path)));
+  let n = 0;
+  if (libTab === 'apps') {
+    const claude = PD.appByName('Claude');
+    if (!q || 'claude talk'.includes(q)) { n++; grid.appendChild(libItem(`${claude ? `<img src="${PD.iconUrl(claude.path)}">` : `<div class="g">${glyph('waveform', '')}</div>`}<span>Talk to Claude</span>`, { t: 'claude' })); }
+    PD.launcher.all.forEach(a => {
+      if (q && !a.name.toLowerCase().includes(q)) return; n++;
+      grid.appendChild(libItem(`<img loading="lazy" src="${PD.iconUrl(a.path)}"><span>${PD.esc(a.name)}</span>`, { t: 'app', path: a.path, name: a.name }, 'li' + (usedPaths.has(a.path) ? ' used' : '')));
+    });
+  } else if (libTab === 'widgets') {
+    Object.entries(PD.WIDGETS).forEach(([k, w]) => {
+      if (q && !(w.label + ' ' + w.desc).toLowerCase().includes(q)) return; n++;
+      const def = w.sizes.includes('m') ? 'm' : w.sizes[0];
+      const el = libItem(`<span class="wglyph" style="background:${w.tint}">${glyph(w.g, '')}</span><div class="grow"><b>${w.label}</b><small>${w.desc}${w.modern ? ' (iPhone 17 / iPad)' : ''}</small>
+        <div class="szs">${w.sizes.split('').map(s => `<em data-s="${s}" title="Add ${PD.SIZE_NAMES[s]} (${PD.SIZES[s].join('×')})">${PD.SIZE_NAMES[s]}</em>`).join('')}</div></div>`, { t: 'w', w: k, s: def }, 'wi');
+      el.querySelectorAll('em').forEach(m => m.onclick = () => addItem({ t: 'w', w: k, s: m.dataset.s }));
+      grid.appendChild(el);
+    });
+  } else if (libTab === 'projects') {
+    if (!PD.projects) { grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1">Looking for projects…</p>'; PD.loadProjects(renderLib); return; }
+    if (!PD.projects.length) grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1">No projects yet. Use Claude Code in a folder once, or keep repositories in ~/Developer, ~/Projects or ~/code.</p>';
+    PD.projects.forEach(p => {
+      if (q && !(p.name + ' ' + p.path).toLowerCase().includes(q)) return; n++;
+      grid.appendChild(libItem(`<div class="pjk">${glyph('folder', '')}</div><span>${PD.esc(p.name)}</span><small>${PD.esc(p.path.replace(/^\/Users\/[^/]+/, '~'))}</small>`, { t: 'project', path: p.path, name: p.name }));
+    });
+  } else {
+    Object.entries(PD.ACTIONS).forEach(([k, a]) => {
+      if (q && !a.label.toLowerCase().includes(q)) return; n++;
+      grid.appendChild(libItem(`<div class="g"><svg viewBox="0 0 24 24">${PD.GLYPHS[a.g]}</svg></div><span>${PD.esc(a.label)}</span>`, { t: 'action', a: k }));
+    });
+  }
+  $('count').textContent = n;
+}
+
+// ---------- settings panes ----------
+const WALLS = { aurora: 'radial-gradient(ellipse at 0% 0%, #6D7CFFaa, transparent 60%), radial-gradient(ellipse at 100% 100%, #FF9230aa, transparent 60%), #08080b',
+  ocean: 'radial-gradient(ellipse at 10% 100%, #0a84a8bb, transparent 60%), radial-gradient(ellipse at 90% 0%, #30d15855, transparent 60%), #08080b',
+  sunset: 'radial-gradient(ellipse at 100% 0%, #ff5f50aa, transparent 60%), radial-gradient(ellipse at 0% 100%, #ffbe3c77, transparent 60%), #08080b',
+  graphite: '#0b0b0d' };
+const ACCENTS = ['#0091FF', '#6D7CFF', '#DB34F2', '#FF375F', '#FF9230', '#30D158', '#00D2E0'];   // macOS 27 / iOS 27 system colors
+function renderPane() {
+  const box = $('pane');
+  if (pane === 'look') {
+    box.innerHTML = `<h2>Appearance</h2><p class="lead">Applies to all three decks. Devices update within a couple of seconds.</p>
+      <div class="card" style="display:flex;justify-content:center;background:#0d0d0f"><div id="lookPrev" style="position:relative;overflow:hidden;border-radius:10px"></div></div>
+      <div class="card"><h3>Day or night</h3><div class="themes">${[['auto', 'Automatic', 'Follows your Mac'], ['day', 'Day', 'Light cards'], ['night', 'Night', 'Dark cards']].map(([v, n, s]) =>
+        `<div class="th ${layout.theme === v ? 'on' : ''}" data-v="${v}"><div style="background:${v === 'day' ? 'linear-gradient(135deg,#f4f5fa,#dfe3ee)' : v === 'night' ? 'linear-gradient(135deg,#1a1a20,#050507)' : 'linear-gradient(90deg,#eef0f6 50%,#0a0a0d 50%)'}"></div>${n}<br><small style="font-weight:500;color:var(--dim)">${s}</small></div>`).join('')}</div></div>
+      <div class="card"><h3>Wallpaper</h3><div class="swatches">${Object.entries(WALLS).map(([k, bg]) => `<div class="wp ${layout.wallpaper === k ? 'on' : ''}" data-v="${k}" style="background:${bg}"><span>${k[0].toUpperCase() + k.slice(1)}</span></div>`).join('')}</div></div>
+      <div class="card"><h3>Accent color</h3><div class="swatches">${ACCENTS.map(c => `<div class="sw ${layout.accent === c ? 'on' : ''}" data-v="${c}" style="background:${c}"></div>`).join('')}</div></div>
+      <div class="card"><h3>Effects</h3><div class="opt"><div class="t">Liquid Glass<small>Blur and depth on the iPhone 17 and iPad (the 4S always uses flat cards for speed).</small></div><span class="chk ${layout.glass !== false ? 'on' : ''}" id="glass"><i></i></span></div></div>`;
+    box.querySelectorAll('.th').forEach(t => t.onclick = () => change(() => { layout.theme = t.dataset.v; }));
+    box.querySelectorAll('.wp').forEach(t => t.onclick = () => change(() => { layout.wallpaper = t.dataset.v; }));
+    box.querySelectorAll('.sw').forEach(t => t.onclick = () => change(() => { layout.accent = t.dataset.v; }));
+    $('glass').onclick = () => change(() => { layout.glass = layout.glass === false; });
+    const [W, H] = previewSize(), sc = Math.min(1, 700 / W), lp = $('lookPrev');
+    lp.style.width = W * sc + 'px'; lp.style.height = H * sc + 'px';
+    deck = new PD.Deck(lp, kind, { edit: true }); deck.page = pageIdx; deck.setLayout(layout, W, H);
+    deck.root.style.transform = `scale(${sc})`;
+  } else if (pane === 'notes') {
+    const n = layout.notifications, d = PD.data.notes || {};
+    const apps = {}; (d.items || []).forEach(it => { if (it.bundle) apps[it.bundle] = it; });
+    (n.muted || []).forEach(b => { if (!apps[b]) apps[b] = { bundle: b, app: b }; });
+    const hook = `curl -s -d "app=Claude Code&title=Task finished&body=$CLAUDE_PROJECT_DIR" "http://localhost:${info.port || 8045}/notify?k=${api.token}"`;
+    const opt = (key, t, s) => `<div class="opt"><div class="t">${t}<small>${s}</small></div><span class="chk ${n[key] !== false ? 'on' : ''}" data-k="${key}"><i></i></span></div>`;
+    box.innerHTML = `<h2>Notifications</h2><p class="lead">See what’s happening on your Mac (WhatsApp, Messages, Claude…) on every deck.</p>
+      <div class="card"><h3>On the decks</h3>
+        ${opt('enabled', 'Show Mac notifications', 'Master switch for everything below.')}
+        ${opt('badges', 'Badges on app keys', 'Red counts from the Mac’s Dock (WhatsApp 3, Mail 12). Works with Accessibility only.')}
+        ${opt('banners', 'Banners', 'New notifications slide in at the top of the deck; tap one to open the app on the Mac.')}
+        ${opt('preview', 'Show message text', 'Off: banners and the Notifications widget show only the app and sender.')}</div>
+      <div class="card"><h3>Permissions</h3>
+        <div class="perm"><div class="grow"><b>Accessibility</b><div style="color:var(--muted);margin-top:2px">Needed for Dock badges, window tiling and sending to Claude.</div></div><span class="s ${perms.accessibility ? 'ok' : 'no'}">${perms.accessibility ? 'Allowed' : 'Not allowed'}</span><button class="btn" data-pane="accessibility">Open Settings</button></div>
+        <div class="perm"><div class="grow"><b>Full Disk Access</b><div style="color:var(--muted);margin-top:2px">Lets PhoneDeck read Notification Center for titles and messages. Add PhoneDeck.app with the + button, then quit and reopen PhoneDeck from the menu bar.</div></div><span class="s ${perms.notifications === 'ok' ? 'ok' : 'no'}">${perms.notifications === 'ok' ? 'Allowed' : 'Not allowed'}</span><button class="btn" data-pane="fda">Open Settings</button></div></div>
+      <div class="card"><h3>Muted apps</h3><p style="color:var(--muted);margin:0 0 8px">Apps that sent notifications recently. Click to mute or unmute.</p>
+        <div>${Object.values(apps).map(it => `<span class="mute ${(n.muted || []).includes(it.bundle) ? 'off' : ''}" data-b="${PD.esc(it.bundle)}">${it.path ? `<img src="${PD.iconUrl(it.path)}">` : glyph('bell')}${PD.esc(it.app)}</span>`).join('') || '<span style="color:var(--dim)">Nothing yet.</span>'}</div></div>
+      <div class="card"><h3>Claude Code task updates</h3><p style="color:var(--muted);margin:0">Claude’s desktop app already shows up through Notification Center. To also get a banner when a Claude Code task finishes, add this command as a <b>Stop</b> hook (Claude Code → /hooks):</p>
+        <pre id="hook">${PD.esc(hook)}</pre><button class="btn" id="copyHook">Copy command</button> <button class="btn" id="testNote">Send a test notification</button></div>`;
+    box.querySelectorAll('.chk[data-k]').forEach(c => c.onclick = () => change(() => { n[c.dataset.k] = n[c.dataset.k] === false; }));
+    box.querySelectorAll('.mute').forEach(m => m.onclick = () => change(() => {
+      const b = m.dataset.b, list = n.muted || (n.muted = []); const i = list.indexOf(b); if (i >= 0) list.splice(i, 1); else list.push(b);
+    }));
+    box.querySelectorAll('[data-pane]').forEach(b => b.onclick = () => api.post('/settings-pane', { pane: b.dataset.pane }));
+    $('copyHook').onclick = () => { navigator.clipboard.writeText(hook).then(() => toast('Copied')); };
+    $('testNote').onclick = () => api.post('/notify', { app: 'Claude', title: 'PhoneDeck test', body: 'Notifications reach your decks.' }, () => toast('Sent: watch your decks'));
+  } else if (pane === 'connect') {
+    const host = info.host || info.lan || 'your-mac', base = `http://${host}:${info.port || 8045}`, secure = `https://${host}:${(info.port || 8045) + 2}`;
+    const row = (label, url) => `<div class="linkrow"><span style="width:150px;color:var(--muted)">${label}</span><code>${PD.esc(url)}</code><button class="btn" data-copy="${PD.esc(url)}">Copy</button></div>`;
+    box.innerHTML = `<h2>Connect a device</h2><p class="lead">Same Wi-Fi or hotspot as this Mac. Links use the Mac’s name (${PD.esc(host)}), so they keep working when you switch networks; if a device can’t find it, use ${PD.esc(info.lan || "")} instead. Open the link in Safari, then Share → Add to Home Screen and turn the device sideways.</p>
+      <div class="card"><h3>iPhone 4S</h3>${row('Deck', `${base}/#k=${api.token}`)}</div>
+      <div class="card"><h3>iPhone 17 and iPad</h3>
+        <p style="color:var(--muted);margin:0 0 6px">One time: install the PhoneDeck profile, then Settings → General → About → Certificate Trust Settings → turn on PhoneDeck CA. The secure link enables camera, mic and voice.</p>
+        ${row('Profile', `${base}/phonedeck.mobileconfig`)}${row('Secure deck', `${secure}/#k=${api.token}`)}</div>
+      <div class="card"><h3>Preview a device here</h3><p style="color:var(--muted);margin:0">Open a deck in this Mac’s browser to try it with live data:
+        <a href="${base}/?device=classic#k=${api.token}" target="_blank">4S</a> · <a href="${base}/?device=phone#k=${api.token}" target="_blank">iPhone</a> · <a href="${base}/?device=tablet#k=${api.token}" target="_blank">iPad</a></p></div>`;
+    box.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => navigator.clipboard.writeText(b.dataset.copy).then(() => toast('Copied')));
+  }
+}
+
+// ---------- render ----------
+let perms = {};
+function render(opts = {}) {
+  if (!layout) return;
+  if (pageIdx >= dev().pages.length) pageIdx = dev().pages.length - 1;
+  renderSide();
+  $('editor').style.display = pane ? 'none' : 'flex';
+  $('pane').style.display = pane ? 'block' : 'none';
+  if (pane) { renderPane(); return; }
+  if (!opts.keepFocus) $('title').value = page().name;
+  $('pageIcon').innerHTML = glyph(PD.iconName(page().icon) || 'sparkles');
+  renderShortcuts();
+  renderPreview();
+  renderInspector();
+  renderLib();
+}
+addEventListener('resize', () => { clearTimeout(render.t); render.t = setTimeout(() => !pane && renderPreview(), 120); });
+
+// ---------- boot ----------
+(async () => {
+  info = await getJSON('/info') || {};
+  if (!info.port) { document.body.innerHTML = '<p style="padding:60px;text-align:center;color:#999">Open the Command Center from the PhoneDeck menu bar icon.</p>'; return; }
+  await new Promise(r => PD.loadLauncher(r));
+  layout = await new Promise(r => PD.loadLayout(r));
+  const existing = await getJSON('/layout');
+  if (!existing) save();   // first run: store the generated default so the devices use it
+  render();
+  if (cc.pending) { cc.pending(); cc.pending = null; }
+  PD.live.on({ data: d => {
+    if (deck) deck.update(d);
+    if (pane === 'notes' && d.notes && JSON.stringify(d.notes.items.map(i => i.bundle)) !== render.lastNoteApps) { render.lastNoteApps = JSON.stringify(d.notes.items.map(i => i.bundle)); }
+    $('noteWarn').style.display = d.notes && d.notes.access !== 'ok' ? '' : 'none';
+  }, tick: () => deck && deck.tick(),
+  // Someone edited on a device (jiggle mode): take their layout unless we're mid-edit here.
+  layoutChanged: () => {
+    if (/INPUT|SELECT/.test(document.activeElement.tagName) || document.querySelector('.dlg, .pmenu')) return;
+    clearTimeout(change.t);
+    PD.loadLayout(l => { layout = l; history = []; render(); });
+  } });
+  PD.live.start(null, 2000);
+  const poll = async () => {
+    const c = await getJSON('/clients'); if (c) { const changed = JSON.stringify(Object.keys(c).map(k => [k, c[k].page, Date.now() - c[k].at < 10000])) !== poll.last; clients = c; poll.last = JSON.stringify(Object.keys(c).map(k => [k, c[k].page, Date.now() - c[k].at < 10000])); if (changed) { renderSide(); if (!pane) { const st = seen(kind); $('live').classList.toggle('on', st.ok && st.page === pageIdx); $('mDot').className = 'dot' + (st.ok ? ' ok' : ''); } } }
+    perms = await getJSON('/permissions') || perms;
+  };
+  poll(); setInterval(poll, 3000);
+  getJSON('/shortcuts').then(s => { shortcuts = s || []; if (!pane) renderShortcuts(); });
+})();
+</script>
+</body>
+</html>

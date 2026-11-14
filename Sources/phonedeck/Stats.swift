@@ -142,7 +142,41 @@ final class Stats {
         queue.async { self.batteries = list }
     }
 
-    /// "Alex's Magic Mouse" → "Magic Mouse", "Sam' Keyboard" → "Keyboard"; keeps labels short on a 3.5" screen.
+    /// Paired Bluetooth devices, split into connected / not connected, with battery levels when macOS reports them.
+    static func bluetooth() -> [String: Any] {
+        guard let data = run("/usr/sbin/system_profiler", ["SPBluetoothDataType", "-json"], timeout: 8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let bt = (root["SPBluetoothDataType"] as? [[String: Any]])?.first else { return ["connected": [], "paired": []] }
+        func parse(_ key: String) -> [[String: Any]] {
+            ((bt[key] as? [[String: Any]]) ?? []).flatMap { entry in entry.compactMap { (name, value) -> [String: Any]? in
+                guard let d = value as? [String: Any] else { return nil }
+                func pct(_ k: String) -> Int? { (d[k] as? String).flatMap { Int($0.filter(\.isNumber)) } }
+                let type = ((d["device_minorType"] as? String) ?? "").lowercased()
+                let kind = type.contains("mouse") ? "mouse" : type.contains("keyboard") ? "keyboard" : type.contains("trackpad") ? "trackpad"
+                    : type.contains("game") ? "gamepad" : type.contains("watch") ? "watch" : type.contains("phone") && !type.contains("head") ? "phone" : "headphones"
+                var out: [String: Any] = ["name": name, "kind": kind]
+                if let v = pct("device_batteryLevelMain") { out["battery"] = v }
+                if let v = pct("device_batteryLevelLeft") { out["left"] = v }
+                if let v = pct("device_batteryLevelRight") { out["right"] = v }
+                if let v = pct("device_batteryLevelCase") { out["case"] = v }
+                return out
+            } }
+        }
+        // Magic accessories report their battery in the IORegistry, not in system_profiler.
+        var hid: [String: Int] = [:]
+        if let d = run("/usr/sbin/ioreg", ["-r", "-k", "BatteryPercent", "-a"]),
+           let items = try? PropertyListSerialization.propertyList(from: d, format: nil) as? [[String: Any]] {
+            for i in items { if let n = i["Product"] as? String, let v = i["BatteryPercent"] as? Int { hid[n] = v } }
+        }
+        let connected = parse("device_connected").map { dev -> [String: Any] in
+            var d = dev
+            if d["battery"] == nil, d["left"] == nil, let n = d["name"] as? String, let v = hid[n] { d["battery"] = v }
+            return d
+        }
+        return ["connected": connected, "paired": parse("device_not_connected")]
+    }
+
+    /// "Fran's Magic Mouse" → "Magic Mouse", "Francis' Keyboard" → "Keyboard"; keeps the widget rows short on a 3.5" screen.
     static func shortName(_ name: String) -> String {
         if let r = name.range(of: "^\\S+['’]s?\\s+", options: .regularExpression) { return String(name[r.upperBound...]) }
         return name

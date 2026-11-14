@@ -86,7 +86,12 @@ final class HTTPConnection {
         let reason = [200: "OK", 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Error"][status] ?? "OK"
         var head = "HTTP/1.1 \(status) \(reason)\r\nContent-Type: \(type)\r\nContent-Length: \(body.count)\r\n"
         head += "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
-        conn.send(content: Data(head.utf8) + body, completion: .contentProcessed { _ in self.conn.cancel() })
+        // Finish gracefully: mark the response as the final message (TCP FIN / TLS close_notify after all data
+        // is delivered) and let the client close. Cancelling right away can cut large files off mid-transfer
+        // over Wi-Fi, and Safari silently drops a script that arrives incomplete.
+        conn.send(content: Data(head.utf8) + body, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [conn] _ in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 15) { conn.cancel() }   // safety net if the client never closes
+        })
     }
 
     func respond(_ status: Int = 200, text: String) { respond(status, "text/plain; charset=utf-8", Data(text.utf8)) }
@@ -120,16 +125,25 @@ final class HTTPConnection {
 
 final class HTTPServer {
     private let listener: NWListener
+
+    /// Publishes this server over Bonjour (call before start).
+    func advertise(name: String, type: String) { listener.service = NWListener.Service(name: name, type: type) }
     let queue: DispatchQueue
 
+    private let portNumber: UInt16
     init(port: UInt16, parameters: NWParameters = .tcp, queue: DispatchQueue = DispatchQueue(label: "http")) throws {
         self.queue = queue
+        portNumber = port
         listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
     }
 
     func start(_ handler: @escaping (HTTPRequest, HTTPConnection) -> Void) {
-        listener.newConnectionHandler = { [queue] nw in HTTPConnection(nw).start(queue: queue, handler: handler) }
+        let port = portNumber
+        listener.newConnectionHandler = { [queue] nw in
+            HTTPConnection(nw).start(queue: queue, handler: handler)
+        }
         listener.stateUpdateHandler = { state in
+            if case .waiting(let e) = state { print("Listener \(port) waiting: \(e)") }
             if case .failed(let e) = state { print("Server failed: \(e)"); exit(1) }
         }
         listener.start(queue: queue)

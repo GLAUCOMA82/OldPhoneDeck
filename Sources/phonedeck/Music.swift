@@ -67,7 +67,7 @@ final class Music {
             }.resume()
         } else if app == "Music" {
             // Apple Music only hands out artwork as raw data; write it to a file and read it back.
-            let file = NSTemporaryDirectory() + "oldphonedeck-art"
+            let file = NSTemporaryDirectory() + "phonedeck-art"
             let script = """
             tell application "Music" to set d to raw data of artwork 1 of current track
             set f to open for access (POSIX file "\(file)") with write permission
@@ -115,7 +115,7 @@ final class Music {
 }
 
 /// The Mac's play/pause, next and previous keys, which macOS sends to whichever app is playing.
-/// Posting them needs the Accessibility permission OldPhoneDeck already asks for.
+/// Posting them needs the Accessibility permission PhoneDeck already asks for.
 enum MediaKey {
     static func press(_ cmd: String) {
         let codes: [String: Int] = ["playpause": 16, "next": 17, "previous": 18]   // NX_KEYTYPE_PLAY, _NEXT, _PREVIOUS

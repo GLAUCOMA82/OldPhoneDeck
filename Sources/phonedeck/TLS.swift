@@ -5,19 +5,19 @@ import Security
 /// A private certificate authority + server certificate so modern iPhones can open phonedeck
 /// over HTTPS (Safari only allows camera/mic/speech on secure pages).
 /// The CA is created once; trust it on the iPhone and every later server cert is accepted.
-/// The server cert is re-issued automatically when the Mac's LAN address changes.
+/// The server cert covers the Mac's .local name and its current LAN address, and is re-issued when either changes.
 enum LocalTLS {
-    static let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".oldphonedeck/tls")
-    static var caDER: URL { dir.appendingPathComponent("oldphonedeck-ca.cer") }
-    private static let p12Password = "oldphonedeck"
+    static let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".phonedeck/tls")
+    static var caDER: URL { dir.appendingPathComponent("phonedeck-ca.cer") }
+    private static let p12Password = "phonedeck"
 
-    /// Returns a TLS identity for `ip`, creating the CA and/or server cert as needed.
-    static func identity(for ip: String) -> sec_identity_t? {
+    /// Returns a TLS identity for `ip` and `host`, creating the CA and/or server cert as needed.
+    static func identity(for ip: String, host: String) -> sec_identity_t? {
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             if !exists("ca.key") || !exists("ca.pem") { try makeCA() }
             let stamp = (try? String(contentsOf: dir.appendingPathComponent("server.ip"), encoding: .utf8)) ?? ""
-            if !exists("server.p12") || stamp != ip { try makeServerCert(ip: ip) }
+            if !exists("server.p12") || stamp != "\(ip) \(host)" { try makeServerCert(ip: ip, host: host) }
             return try loadIdentity()
         } catch {
             print("⚠️  HTTPS disabled: \(error.localizedDescription)")
@@ -38,8 +38,8 @@ enum LocalTLS {
                 der = try? Data(contentsOf: caDER)
             }
             guard let der, valid(der) else {
-                throw NSError(domain: "oldphonedeck.tls", code: -2, userInfo: [NSLocalizedDescriptionKey:
-                    "the certificate in \(dir.path) is damaged. Quit OldPhoneDeck, delete that folder and start it again"])
+                throw NSError(domain: "phonedeck.tls", code: -2, userInfo: [NSLocalizedDescriptionKey:
+                    "the certificate in \(dir.path) is damaged. Quit PhoneDeck, delete that folder and start it again"])
             }
             return der
         } catch {
@@ -64,39 +64,40 @@ enum LocalTLS {
         p.waitUntilExit()
         guard p.terminationStatus == 0 else {
             let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw NSError(domain: "oldphonedeck.tls", code: Int(p.terminationStatus),
+            throw NSError(domain: "phonedeck.tls", code: Int(p.terminationStatus),
                           userInfo: [NSLocalizedDescriptionKey: "openssl \(args.first ?? ""): \(msg)"])
         }
     }
 
     private static func makeCA() throws {
+        let host = Host.current().localizedName ?? "Mac"
         // Self-signed via an explicit extfile: LibreSSL's "-extensions v3_ca" depends on the system openssl.cnf.
         try "basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n"
             .write(to: dir.appendingPathComponent("ca.ext"), atomically: true, encoding: .utf8)
         try openssl(["req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout", "ca.key", "-out", "ca.csr",
-                     "-subj", "/CN=OldPhoneDeck CA"])
+                     "-subj", "/CN=PhoneDeck CA (\(host))"])
         try openssl(["x509", "-req", "-in", "ca.csr", "-signkey", "ca.key", "-sha256", "-days", "3650",
                      "-extfile", "ca.ext", "-out", "ca.pem"])
-        try openssl(["x509", "-in", "ca.pem", "-outform", "der", "-out", "oldphonedeck-ca.cer"])
+        try openssl(["x509", "-in", "ca.pem", "-outform", "der", "-out", "phonedeck-ca.cer"])
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dir.appendingPathComponent("ca.key").path)
     }
 
-    private static func makeServerCert(ip: String) throws {
+    private static func makeServerCert(ip: String, host: String) throws {
         // iOS requires: SAN entries, serverAuth EKU, and at most 825 days of validity.
         let ext = """
         basicConstraints=CA:FALSE
         keyUsage=digitalSignature,keyEncipherment
         extendedKeyUsage=serverAuth
-        subjectAltName=IP:\(ip),IP:127.0.0.1,DNS:localhost
+        subjectAltName=DNS:\(host),IP:\(ip),IP:127.0.0.1,DNS:localhost
         """
         try ext.write(to: dir.appendingPathComponent("server.ext"), atomically: true, encoding: .utf8)
         try openssl(["req", "-newkey", "rsa:2048", "-nodes", "-keyout", "server.key", "-out", "server.csr",
-                     "-subj", "/CN=\(ip)"])
+                     "-subj", "/CN=\(host)"])
         try openssl(["x509", "-req", "-in", "server.csr", "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial",
                      "-days", "800", "-sha256", "-extfile", "server.ext", "-out", "server.pem"])
         try openssl(["pkcs12", "-export", "-inkey", "server.key", "-in", "server.pem", "-certfile", "ca.pem",
                      "-out", "server.p12", "-passout", "pass:\(p12Password)"])
-        try ip.write(to: dir.appendingPathComponent("server.ip"), atomically: true, encoding: .utf8)
+        try "\(ip) \(host)".write(to: dir.appendingPathComponent("server.ip"), atomically: true, encoding: .utf8)
     }
 
     private static func loadIdentity() throws -> sec_identity_t {
@@ -107,12 +108,12 @@ enum LocalTLS {
         let status = SecPKCS12Import(data as CFData, opts as CFDictionary, &items)
         guard status == errSecSuccess, let first = (items as? [[String: Any]])?.first,
               let ref = first[kSecImportItemIdentity as String] else {
-            throw NSError(domain: "oldphonedeck.tls", code: Int(status),
+            throw NSError(domain: "phonedeck.tls", code: Int(status),
                           userInfo: [NSLocalizedDescriptionKey: "Could not load server identity (\(status))"])
         }
         let identity = ref as! SecIdentity
         guard let sec = sec_identity_create(identity) else {
-            throw NSError(domain: "oldphonedeck.tls", code: -1, userInfo: [NSLocalizedDescriptionKey: "sec_identity_create failed"])
+            throw NSError(domain: "phonedeck.tls", code: -1, userInfo: [NSLocalizedDescriptionKey: "sec_identity_create failed"])
         }
         return sec
     }

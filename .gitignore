@@ -2,3 +2,6 @@
 .swiftpm/
 *.xcodeproj
 .DS_Store
+PhoneDeck.app/
+PhoneCam/build/
+PhoneCam/.sdk/

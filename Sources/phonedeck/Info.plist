@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Embedded into the binary (__TEXT,__info_plist) so macOS privacy prompts have usage text. -->
+	<key>CFBundleIdentifier</key><string>com.phonedeck.server</string>
+	<key>CFBundleName</key><string>phonedeck</string>
+	<key>NSCalendarsFullAccessUsageDescription</key><string>Shows your upcoming events on the PhoneDeck dashboard.</string>
+	<key>NSAppleEventsUsageDescription</key><string>Reads now playing and toggles dark mode for the PhoneDeck dashboard.</string>
+</dict>
+</plist>

@@ -1,9 +1,72 @@
 import AppKit
 
-/// Synthetic key presses (used to press Return in Claude). Requires Accessibility permission.
+/// Turns normalized touch coordinates from the phone into real mouse/keyboard events
+/// on the virtual display. Requires Accessibility permission.
 enum Input {
+    static var displayID: CGDirectDisplayID = CGMainDisplayID()
+    private static var buttonDown = false
+    private static var lastDown = Date.distantPast
+    private static var lastDownPoint = CGPoint.zero
+    private static var clickCount: Int64 = 1
+
+    private static func point(_ x: Double, _ y: Double) -> CGPoint {
+        let b = CGDisplayBounds(displayID)
+        let cx = min(max(x, 0), 1), cy = min(max(y, 0), 1)
+        return CGPoint(x: b.minX + cx * (b.width - 1), y: b.minY + cy * (b.height - 1))
+    }
+
+    private static func mouse(_ type: CGEventType, _ p: CGPoint, _ button: CGMouseButton = .left) {
+        guard let e = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: button) else { return }
+        if type == .leftMouseDown || type == .leftMouseUp || type == .leftMouseDragged {
+            e.setIntegerValueField(.mouseEventClickState, value: clickCount)
+        }
+        e.post(tap: .cghidEventTap)
+    }
+
+    static func handle(_ q: [String: String]) {
+        let x = Double(q["x"] ?? "") ?? 0.5, y = Double(q["y"] ?? "") ?? 0.5
+        let p = point(x, y)
+        switch q["t"] ?? "" {
+        case "move":
+            mouse(buttonDown ? .leftMouseDragged : .mouseMoved, p)
+        case "down":
+            // Two downs close in time and space become a double-click.
+            let near = hypot(p.x - lastDownPoint.x, p.y - lastDownPoint.y) < 12
+            clickCount = (Date().timeIntervalSince(lastDown) < NSEvent.doubleClickInterval && near) ? clickCount + 1 : 1
+            lastDown = Date(); lastDownPoint = p
+            buttonDown = true
+            mouse(.leftMouseDown, p)
+        case "up":
+            buttonDown = false
+            mouse(.leftMouseUp, p)
+        case "rclick":
+            mouse(.rightMouseDown, p, .right)
+            mouse(.rightMouseUp, p, .right)
+        case "scroll":
+            let dx = Int32(Double(q["dx"] ?? "") ?? 0), dy = Int32(Double(q["dy"] ?? "") ?? 0)
+            CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0)?
+                .post(tap: .cghidEventTap)
+        default:
+            break
+        }
+    }
+
+    static func type(_ text: String) {
+        for ch in text {
+            let units = Array(String(ch).utf16)
+            for down in [true, false] {
+                guard let e = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down) else { continue }
+                e.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+                e.post(tap: .cghidEventTap)
+            }
+        }
+    }
+
     static func key(_ name: String) {
-        let codes: [String: CGKeyCode] = ["return": 36, "tab": 48, "space": 49, "delete": 51, "escape": 53]
+        let codes: [String: CGKeyCode] = [
+            "return": 36, "tab": 48, "space": 49, "delete": 51, "escape": 53,
+            "left": 123, "right": 124, "down": 125, "up": 126,
+        ]
         guard let code = codes[name] else { return }
         for down in [true, false] {
             CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)?.post(tap: .cghidEventTap)
@@ -63,10 +126,30 @@ enum Apps {
     }
 }
 
+/// Photos/videos shot on the phone land here; images are also put on the clipboard.
+enum Uploads {
+    static let folder = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Pictures/PhoneDeck")
+
+    static func save(_ data: Data, suggestedName: String) throws -> URL {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let safe = suggestedName.replacingOccurrences(of: "/", with: "_")
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let url = folder.appendingPathComponent("\(stamp)-\(safe.isEmpty ? "upload" : safe)")
+        try data.write(to: url)
+        if let image = NSImage(data: data) {
+            DispatchQueue.main.async {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.writeObjects([image])
+            }
+        }
+        return url
+    }
+}
+
 /// Which apps the phone launcher shows, in order. Stored on the Mac so Safari and the
 /// home-screen app (which have separate storage on iOS) see the same list.
 enum Launcher {
-    static let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".oldphonedeck/launcher.json")
+    static let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".phonedeck/launcher.json")
 
     /// nil = never configured (phone shows everything and suggests editing).
     static func selected() -> [String]? {
@@ -108,6 +191,24 @@ enum Claude {
                 return
             }
             Input.key("return")
+        }
+    }
+
+    /// Opens Claude on a fresh, empty chat (same deep link as the app's own "New Chat" action).
+    static func newChat() {
+        if let url = URL(string: "claude://claude.ai/new?surface=chat") { NSWorkspace.shared.open(url) }
+    }
+
+    /// Continues the conversation: brings Claude to the front and types the reply into its message box.
+    static func reply(_ text: String) {
+        focus()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID else {
+                print("Claude was not frontmost; reply not typed")
+                return
+            }
+            Input.type(text)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { Input.key("return") }
         }
     }
 

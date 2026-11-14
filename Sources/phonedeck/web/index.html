@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- PhoneDeck: one page for the iPhone 4S, modern iPhones and the iPad (landscape).
+     The layout comes from the Mac's Command Center; deck.js renders it (ES5, runs on iOS 9). -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PhoneDeck">
+<meta name="theme-color" content="#050507">
+<title>PhoneDeck</title>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="stylesheet" href="/deck.css">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #050507; }
+</style>
+</head>
+<body>
+<script>
+// Report errors from the very start (including deck.js failing to parse or boot) to the Mac's log.
+(function () {
+  var t = (/k=([a-z0-9]+)/.exec(location.hash) || [])[1];
+  try { t = t || localStorage.getItem('token'); } catch (e) {}
+  window.onerror = function (m, s, l, c, err) {
+    try {
+      var x = new XMLHttpRequest(); x.open('POST', '/clientlog?k=' + t, true);
+      x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      x.send('dev=early&msg=' + encodeURIComponent(String(m) + (err && err.stack ? ' | ' + String(err.stack).slice(0, 400) : '')) + '&at=' + encodeURIComponent((s || '').split('/').pop() + ':' + l + ':' + c) + '&ua=' + encodeURIComponent(navigator.userAgent.slice(0, 90)));
+    } catch (e) {}
+  };
+})();
+</script>
+<script src="/deck.js"></script>
+<script>try { PD.boot(document.body); } catch (e) { window.onerror("boot: " + e.message, "index", 0, 0, e); }</script>
+</body>
+</html>
