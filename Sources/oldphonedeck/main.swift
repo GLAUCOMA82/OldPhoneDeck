@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import CryptoKit
 
 // MARK: Options
 
@@ -89,16 +90,32 @@ let webRoot = Bundle.module.url(forResource: "web", withExtension: nil)!
 
 let routes: (HTTPRequest, HTTPConnection) -> Void = { req, conn in
     // Public: the page shell (so a home-screen bookmark loads) and the local CA as an iOS profile.
-    if req.path == "/oldphonedeck.mobileconfig" {
-        guard let der = try? Data(contentsOf: LocalTLS.caDER) else { return conn.respond(404, text: "no certificate yet") }
+    if req.path == "/oldphonedeck.mobileconfig" || req.path == "/oldphonedeck-ca.cer" {
+        guard let der = LocalTLS.caCertificate() else {
+            // A page, not a broken download: iOS would only say "Invalid Profile".
+            let page = "<meta name=viewport content='width=device-width'><body style='font:17px -apple-system;padding:24px'>"
+                + "<h3>OldPhoneDeck couldn't create its certificate</h3><p>The Terminal window running oldphonedeck on your Mac shows why.</p>"
+            return conn.respond(500, "text/html; charset=utf-8", Data(page.utf8))
+        }
+        // The bare certificate: iOS also offers to install it as a profile, a fallback if the profile is refused.
+        if req.path == "/oldphonedeck-ca.cer" { return conn.respond(200, "application/x-x509-ca-cert", der) }
+        // UUIDs from the certificate itself, so every Mac's CA gets its own profile.
+        let hash = SHA256.hash(data: der).map { String(format: "%02X", $0) }.joined()
+        func uuid(_ salt: Int) -> String {
+            let h = String(hash.dropFirst(salt * 32).prefix(32))
+            return [0, 8, 12, 16, 20].enumerated().map { i, start in
+                let len = [8, 4, 4, 4, 12][i]
+                return String(h.dropFirst(start).prefix(len))
+            }.joined(separator: "-")
+        }
         let cert: [String: Any] = [
             "PayloadType": "com.apple.security.root", "PayloadVersion": 1,
-            "PayloadIdentifier": "com.oldphonedeck.ca.cert", "PayloadUUID": "6F1C2A4E-2B7D-4C5A-9E1F-50A1C0DEC0A1",
+            "PayloadIdentifier": "com.oldphonedeck.ca.cert", "PayloadUUID": uuid(0),
             "PayloadDisplayName": "OldPhoneDeck CA", "PayloadCertificateFileName": "oldphonedeck-ca.cer", "PayloadContent": der,
         ]
         let profile: [String: Any] = [
             "PayloadType": "Configuration", "PayloadVersion": 1,
-            "PayloadIdentifier": "com.oldphonedeck.ca", "PayloadUUID": "3B8E9D10-7C2F-4E61-A5B3-50A1C0DEC0A2",
+            "PayloadIdentifier": "com.oldphonedeck.ca", "PayloadUUID": uuid(1),
             "PayloadDisplayName": "OldPhoneDeck", "PayloadOrganization": "OldPhoneDeck",
             "PayloadDescription": "Lets this iPhone open OldPhoneDeck on your Mac over HTTPS (needed for camera, mic and voice).",
             "PayloadContent": [cert],

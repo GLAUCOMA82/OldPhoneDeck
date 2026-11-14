@@ -29,6 +29,9 @@ enum Apps {
                 out.append(["name": name, "path": dir + "/" + item])
             }
         }
+        // Finder lives outside the app folders, in CoreServices.
+        let finder = "/System/Library/CoreServices/Finder.app"
+        if seen.insert("Finder").inserted, fm.fileExists(atPath: finder) { out.append(["name": "Finder", "path": finder]) }
         return out.sorted { $0["name"]!.localizedCaseInsensitiveCompare($1["name"]!) == .orderedAscending }
     }
 

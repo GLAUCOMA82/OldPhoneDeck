@@ -99,12 +99,13 @@
   #mArt.none { visibility: hidden; }
   #mNote { position: absolute; left: 8px; top: 8px; width: 36px; height: 36px; border-radius: 8px; text-align: center;
     line-height: 36px; font-size: 18px; color: #636366; background: linear-gradient(135deg, #3a3a3c, #232326); }
-  #mInfo { position: absolute; left: 54px; right: 116px; top: 9px; }
+  #mInfo { position: absolute; left: 54px; right: 174px; top: 9px; }
   #mTitle { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mArtist { font-size: 10.5px; color: #8e8e93; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #mProg { position: absolute; left: 54px; right: 116px; bottom: 8px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #mProg { position: absolute; left: 54px; right: 174px; bottom: 8px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
   #mProg i { display: block; height: 100%; width: 0; background: rgba(255,255,255,.75); border-radius: 2px; }
-  #mBtns { position: absolute; right: 8px; top: 9px; width: 104px; height: 34px; }
+  #mBtns { position: absolute; right: 8px; top: 9px; width: 162px; height: 34px; }
+  .mb.vol { width: 28px; } .mb.vol svg { left: 6px; }
   .mb { float: left; width: 34px; height: 34px; border-radius: 17px; position: relative; }
   .mb svg { position: absolute; left: 9px; top: 9px; }
   .mb.play { background: #f5f5f7; margin: 0 1px; }
@@ -183,9 +184,11 @@
     <div id="hint">Hold any key to choose apps</div>
     <div id="music" class="card">
       <div id="mNote">♪</div><img id="mArt" class="none" alt="">
-      <div id="mInfo"><div id="mTitle">Nothing playing</div><div id="mArtist">Spotify or Apple Music</div></div>
+      <div id="mInfo"><div id="mTitle">Not playing</div><div id="mArtist">Any player</div></div>
       <div id="mProg"><i id="mProgFill"></i></div>
       <div id="mBtns">
+        <div class="mb vol" id="mVolDown"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M1.5 6h2.5l3.5-3v10L4 10H1.5z" fill="#f5f5f7"/><path d="M10.5 8h4" stroke="#f5f5f7" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        <div class="mb vol" id="mVolUp"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M1.5 6h2.5l3.5-3v10L4 10H1.5z" fill="#f5f5f7"/><path d="M10.5 8h4M12.5 6v4" stroke="#f5f5f7" stroke-width="1.6" stroke-linecap="round"/></svg></div>
         <div class="mb" id="mPrev"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3.5 3v10M12.5 3.6v8.8L5.8 8z" fill="#f5f5f7" stroke="#f5f5f7" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
         <div class="mb play" id="mPlay"></div>
         <div class="mb" id="mNext"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.5 3v10M3.5 3.6v8.8L10.2 8z" fill="#f5f5f7" stroke="#f5f5f7" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
@@ -211,7 +214,7 @@
     </div>
     <div id="pSetup">
       <h2>One-time setup for camera &amp; mic</h2>
-      <p>1. <a href="/oldphonedeck.mobileconfig">Download the OldPhoneDeck profile</a>, tap <b>Allow</b>, then Settings → <b>Profile Downloaded</b> → Install.</p>
+      <p>1. <a href="/oldphonedeck.mobileconfig">Download the OldPhoneDeck profile</a>, tap <b>Allow</b>, then Settings → <b>Profile Downloaded</b> → Install. If it says “Invalid Profile”, <a href="/oldphonedeck-ca.cer">download the certificate</a> instead; it installs the same way.</p>
       <p>2. Settings → General → About → <b>Certificate Trust Settings</b> → turn on OldPhoneDeck CA.</p>
       <p>3. Open the <a id="httpsLink" href="#">secure deck</a>, then Share → Add to Home Screen.</p>
     </div>
@@ -637,8 +640,8 @@
   function setPlayIcon(playing) { $('mPlay').innerHTML = playing ? PAUSE : PLAY; }
   function renderMusic(m) {
     m = m || {};
-    $('mTitle').textContent = m.title || 'Nothing playing';
-    $('mArtist').textContent = m.title ? (m.artist || '') + (m.app ? ' · ' + m.app : '') : 'Spotify or Apple Music';
+    $('mTitle').textContent = m.title || 'Not playing';
+    $('mArtist').textContent = m.title ? (m.artist || '') + (m.app ? ' · ' + m.app : '') : 'Any player';
     track = { playing: !!m.playing, position: m.position || 0, duration: m.duration || 0, at: Date.now() };
     setPlayIcon(track.playing);
     var key = m.id && m.hasArt ? m.id : '';
@@ -661,6 +664,8 @@
   tap($('mPlay'), function () { setPlayIcon(!track.playing); track.playing = !track.playing; media('playpause'); });
   tap($('mNext'), function () { media('next'); });
   tap($('mPrev'), function () { media('previous'); });
+  tap($('mVolDown'), function () { media('volumedown'); });
+  tap($('mVolUp'), function () { media('volumeup'); });
   tap($('mInfo'), function () { media('open'); toast('Opening the player on the Mac'); });
   setPlayIcon(false);
 

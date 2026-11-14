@@ -25,6 +25,29 @@ enum LocalTLS {
         }
     }
 
+    /// The CA certificate (DER) for the iPhone profile, created if needed and checked before it is served:
+    /// iOS answers a damaged or empty certificate with a bare "Invalid Profile". nil if it can't be made.
+    static func caCertificate() -> Data? {
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            if !exists("ca.key") || !exists("ca.pem") { try makeCA() }
+            let valid = { (d: Data?) in d.flatMap { SecCertificateCreateWithData(nil, $0 as CFData) } != nil }
+            var der = try? Data(contentsOf: caDER)
+            if !valid(der) {   // missing or damaged: export it again from the CA
+                try openssl(["x509", "-in", "ca.pem", "-outform", "der", "-out", caDER.lastPathComponent])
+                der = try? Data(contentsOf: caDER)
+            }
+            guard let der, valid(der) else {
+                throw NSError(domain: "oldphonedeck.tls", code: -2, userInfo: [NSLocalizedDescriptionKey:
+                    "the certificate in \(dir.path) is damaged. Quit OldPhoneDeck, delete that folder and start it again"])
+            }
+            return der
+        } catch {
+            print("⚠️  Can't make the iPhone profile: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     private static func exists(_ name: String) -> Bool {
         FileManager.default.fileExists(atPath: dir.appendingPathComponent(name).path)
     }

@@ -11,9 +11,9 @@ No jailbreak, no App Store, nothing to install on the phone: it runs in Safari, 
 
 ## Features
 
-- **8 big keys:** 7 Mac apps of your choice, plus **Take note**. Tap a key and the app opens on your Mac. Hold any key to pick apps.
+- **8 big keys:** 7 Mac apps of your choice (Finder included), plus **Take note**. Tap a key and the app opens on your Mac. Hold any key to pick apps.
 - **Take note → new Claude chat:** dictate a note, and it opens and sends a fresh conversation in the [Claude](https://claude.ai/download) desktop app.
-- **Now playing:** artwork, track, progress, and previous / play-pause / next for **Spotify** or **Apple Music**.
+- **Now playing:** artwork, track and progress for **Spotify** or **Apple Music**, with volume down / up and previous / play-pause / next. When neither is playing, the buttons work with any player (a browser, Podcasts…) through the Mac's media keys.
 - **Internet widget:** download, upload and ping (macOS's built-in `networkQuality`), plus a live traffic graph. Tap it to re-test.
 - **Batteries widget:** MacBook, Magic Keyboard / Mouse / Trackpad and AirPods (with case), each as an icon + percentage.
 - **Fits any iPhone:** a compact 480×320 layout on old phones; full-width landscape and a portrait layout on modern ones.
@@ -46,7 +46,7 @@ Tips for a dedicated desk display: set **Auto-Lock → Never**, and use **Guided
 
 | Permission | Why |
 |---|---|
-| **Accessibility** | Take note presses Return in Claude to send your note |
+| **Accessibility** | Take note presses Return in Claude to send your note; the music buttons press the Mac's media keys for players other than Spotify and Music |
 | **Automation → Spotify / Music** | Reading what's playing and controlling playback |
 
 They're granted to the app you run `oldphonedeck` from (e.g. Terminal).
@@ -56,7 +56,7 @@ They're granted to the app you run `oldphonedeck` from (e.g. Terminal).
 Safari only allows the microphone, camera and speech recognition on **HTTPS** pages, so OldPhoneDeck creates a private certificate authority on your Mac (stored in `~/.oldphonedeck/tls`).
 
 1. On the iPhone, open `http://<mac-ip>:8045/oldphonedeck.mobileconfig` and tap **Allow**.
-2. **Settings → Profile Downloaded → Install.**
+2. **Settings → Profile Downloaded → Install.** If Safari says *Invalid Profile*, open `http://<mac-ip>:8045/oldphonedeck-ca.cer` instead: it installs the same certificate the same way. If that link shows an error page, the Terminal window running `oldphonedeck` says what went wrong.
 3. **Settings → General → About → Certificate Trust Settings** → turn on **OldPhoneDeck CA**. *(Easy to miss: without it Safari keeps saying "This Connection Is Not Private".)*
 4. Open `https://<mac-ip>:8047/#k=<token>` and add it to the Home Screen.
 
