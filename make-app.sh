@@ -62,7 +62,17 @@ PLIST
 # macOS ties Accessibility / Full Disk Access to the signature: an ad-hoc signature changes with every
 # build and loses them, a fixed certificate keeps them across rebuilds. Nothing is added to your login keychain.
 KC="$HOME/.phonedeck/signing.keychain-db"; KCPW="phonedeck-local-signing"; ID="PhoneDeck Local Signing"
+# Use macOS's own openssl (LibreSSL): OpenSSL 3 from Homebrew or conda writes .p12 files with an encryption
+# that `security import` rejects ("MAC verification failed").
+OPENSSL=/usr/bin/openssl
+# A run that failed halfway leaves a keychain without the identity: start that one over.
+# (No -v: a self-signed identity is never "valid" (trusted), but codesign uses it fine.)
+if [ -f "$KC" ] && ! security find-identity -p codesigning "$KC" 2>/dev/null | grep -q "\"$ID\""; then
+  echo "Signing keychain has no \"$ID\" identity; recreating it"
+  security delete-keychain "$KC" 2>/dev/null || rm -f "$KC"
+fi
 if [ ! -f "$KC" ]; then
+  mkdir -p "$HOME/.phonedeck"
   T="$(mktemp -d)"
   cat > "$T/cert.cnf" <<'CNF'
 [req]
@@ -75,8 +85,8 @@ keyUsage = critical, digitalSignature
 extendedKeyUsage = critical, codeSigning
 basicConstraints = critical, CA:false
 CNF
-  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$T/cert.cnf" -extensions ext -keyout "$T/key.pem" -out "$T/cert.pem" 2>/dev/null
-  openssl pkcs12 -export -inkey "$T/key.pem" -in "$T/cert.pem" -name "$ID" -out "$T/id.p12" -passout pass:"$KCPW" 2>/dev/null
+  "$OPENSSL" req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$T/cert.cnf" -extensions ext -keyout "$T/key.pem" -out "$T/cert.pem" 2>/dev/null
+  "$OPENSSL" pkcs12 -export -inkey "$T/key.pem" -in "$T/cert.pem" -name "$ID" -out "$T/id.p12" -passout pass:"$KCPW" 2>/dev/null
   security create-keychain -p "$KCPW" "$KC"
   security set-keychain-settings "$KC"
   security unlock-keychain -p "$KCPW" "$KC"
